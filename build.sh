@@ -4,6 +4,7 @@ set -e
 # === Default settings ===
 BUILD_TYPE="Debug"
 ACTIONS=("build")
+CMAKE_ARGS=()
 
 # === Parse args ====
 while [[ $# -gt 0 ]]; do
@@ -20,9 +21,14 @@ while [[ $# -gt 0 ]]; do
             IFS=',' read -r -a ACTIONS <<< "${1#--action=}"
             shift
             ;;
+        -D*)
+            IFS=',' read -r -a CMAKE_ARGS <<< "${1#-D}"
+            # echo "-D option detected, adding to CMake args: $1"
+            shift
+            ;;
         *)
             echo "❌ Unknown option: $1"
-            echo "Usage: $0 [--debug|--release] [--action=clean,build,ctest]"
+            echo "Usage: $0 [--debug|--release] [--action=clean,build,ctest] options: [-Dundefined,address,leak,thread]"
             exit 1
             ;;
     esac
@@ -38,7 +44,7 @@ for ACTION in "${ACTIONS[@]}"; do
             echo "🛠️ Building in $BUILD_TYPE mode..."
             mkdir -p "$BUILD_DIR"
             cd "$BUILD_DIR"
-            cmake -DCMAKE_BUILD_TYPE="$BUILD_TYPE" ../..
+            cmake -DCMAKE_BUILD_TYPE="$BUILD_TYPE" "${CMAKE_ARGS[@]}" ../..
             cmake --build .
             cd - > /dev/null
             echo "✅ Build completed"
