@@ -6,6 +6,7 @@ list(FILTER SRC_FILES EXCLUDE REGEX ".*\\.t\\.cpp$")
 # === Build Source files as libraries
 add_library(ksllib STATIC ${SRC_FILES})
 target_include_directories(ksllib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(ksllib PUBLIC memorylib)
 
 # === Main App ===
 add_executable(ksl.tsk

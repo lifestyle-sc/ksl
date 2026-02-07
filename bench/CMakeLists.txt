@@ -63,6 +63,7 @@ find_package(benchmark REQUIRED)
 # === Build Source files as libraries
 add_library(benchlib STATIC ${SRC_FILES})
 target_include_directories(benchlib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(benchlib PUBLIC memorylib)
 
 # === Main App ===
 add_executable(bench.tsk
