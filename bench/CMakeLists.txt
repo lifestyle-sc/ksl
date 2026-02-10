@@ -65,11 +65,35 @@ add_library(benchlib STATIC ${SRC_FILES})
 target_include_directories(benchlib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(benchlib PUBLIC memorylib)
 
+# Create a "warnings" target that doesn't build code itself,
+# but holds all our strict settings.
+add_library(bench_strict_warnings INTERFACE)
+
+target_compile_options(bench_strict_warnings INTERFACE
+    # Settings for GCC and Clang
+    $<$<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:
+        -Wall                   # Basic common warnings
+        -Wextra                  # Additional common warnings
+        -Wshadow                # Warn when a variable "shadows" another (see below)
+        -Wuninitialized         # Warn about using variables before they are set
+        -Wpedantic              # Ensure you aren't using non-standard compiler "extensions"
+        -Wconversion            # Warn if data is lost during type conversion (e.g., double to int)
+        -Wreturn-type           # The one that caught your previous error!
+        -Werror                 # Turn all the above into errors
+    >
+    # Settings for Visual Studio (MSVC)
+    $<$<CXX_COMPILER_ID:MSVC>:
+        /W4                     # Set warning level 4 (highest standard level)
+        /WX                     # Warnings as errors
+        /permissive-            # Enforce standard C++ behavior (turns off MSVC "cheats")
+    >
+)
+
 # === Main App ===
 add_executable(bench.tsk
 bench.m.cpp
 )
-target_link_libraries(bench.tsk PRIVATE benchlib benchmark)
+target_link_libraries(bench.tsk PRIVATE benchlib bench_strict_warnings benchmark)
 
 # ===  Apply knobs in one place
 apply_sanitizers(benchlib)
