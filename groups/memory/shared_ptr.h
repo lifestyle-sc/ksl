@@ -57,9 +57,16 @@ template <typename T> class shared_ptr {
 
   public:
     // ACCESSORS
-    [[nodiscard]] T &operator*() const noexcept { return *(cb->ptr); }
+    [[nodiscard]] inline T *get() const noexcept {
+        if (cb) {
+            return cb->ptr;
+        }
+        return nullptr;
+    }
 
-    [[nodiscard]] T *operator->() const noexcept { return cb->ptr; }
+    [[nodiscard]] T &operator*() const noexcept { return *(get()); }
+
+    [[nodiscard]] T *operator->() const noexcept { return get(); }
 };
 
 template <typename T>
