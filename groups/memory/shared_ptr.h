@@ -67,6 +67,15 @@ template <typename T> class shared_ptr {
     [[nodiscard]] T &operator*() const noexcept { return *(get()); }
 
     [[nodiscard]] T *operator->() const noexcept { return get(); }
+
+  public:
+    // OBSERVERS
+    [[nodiscard]] inline long use_count() const noexcept {
+        if (cb) {
+            return cb->ref_count;
+        }
+        return 0;
+    }
 };
 
 template <typename T>
