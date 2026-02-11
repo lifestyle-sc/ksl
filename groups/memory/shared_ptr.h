@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <cstddef>
 
 namespace ksl {
@@ -11,7 +12,7 @@ template <typename T> class shared_ptr {
 
     control_block *cb;
 
-    void release() {
+    inline void release() {
         if (cb) {
             --cb->ref_count;
             if (cb->ref_count == 0) {
@@ -21,6 +22,9 @@ template <typename T> class shared_ptr {
             cb = nullptr;
         }
     }
+
+  public:
+    using Value_Type = T;
 
   public:
     // Constructor
@@ -34,10 +38,10 @@ template <typename T> class shared_ptr {
     explicit shared_ptr(T *ptr);
 
     // Copy constructor
-    shared_ptr(const shared_ptr<T> &rhs);
+    shared_ptr(const shared_ptr<T> &rhs) noexcept;
 
     // Move constructor
-    shared_ptr(shared_ptr<T> &&rhs) = delete;
+    shared_ptr(shared_ptr<T> &&rhs) noexcept;
 
     // Copy assignment
     /// Assignment operator that deletes the current managed object and
@@ -45,7 +49,7 @@ template <typename T> class shared_ptr {
     shared_ptr<T> &operator=(const shared_ptr<T> &rhs);
 
     // Move assignment
-    shared_ptr<T> &operator=(shared_ptr<T> &&rhs) = delete;
+    shared_ptr<T> &operator=(shared_ptr<T> &&rhs);
 
     // Desctructor
     /// Destroys the managed object if this is the last shared_ptr owning it.
@@ -68,8 +72,12 @@ template <typename T> shared_ptr<T>::shared_ptr(T *ptr) : cb(new control_block{p
 
 template <typename T> shared_ptr<T>::~shared_ptr() { release(); }
 
-template <typename T> shared_ptr<T>::shared_ptr(const shared_ptr<T> &rhs) : cb(rhs.cb) {
+template <typename T> shared_ptr<T>::shared_ptr(const shared_ptr<T> &rhs) noexcept : cb(rhs.cb) {
     ++cb->ref_count;
+}
+
+template <typename T> shared_ptr<T>::shared_ptr(shared_ptr<T> &&rhs) noexcept : cb(nullptr) {
+    std::swap(this->cb, rhs.cb);
 }
 
 template <typename T> shared_ptr<T> &shared_ptr<T>::operator=(const shared_ptr<T> &rhs) {
@@ -77,6 +85,14 @@ template <typename T> shared_ptr<T> &shared_ptr<T>::operator=(const shared_ptr<T
         release();
         this->cb = rhs.cb;
         this->cb->ref_count++;
+    }
+    return *this;
+}
+
+template <typename T> shared_ptr<T> &shared_ptr<T>::operator=(shared_ptr<T> &&rhs) {
+    if (this != &rhs) {
+        release();
+        std::swap(this->cb, rhs.cb);
     }
     return *this;
 }

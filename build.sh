@@ -61,7 +61,7 @@ for ACTION in "${ACTIONS[@]}"; do
             fi
             echo "🧪 Running tests with ctest in $BUILD_DIR..."
             cd "$BUILD_DIR"
-            ctest
+            ctest --output-on-failure
             cd - > /dev/null
             echo "✅ Tests run completed"
             ;;

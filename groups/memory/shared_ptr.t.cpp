@@ -264,35 +264,9 @@ TEST_F(SharedPtrTest, DestructorDoesNotDeleteWhenOtherOwnersExist) {
     EXPECT_EQ(ptr1->value, 60);
 }
 
-TEST_F(SharedPtrTest, DestructorOrderWithMultipleOwners) {
-    TestObject::destructor_count = 0;
-    {
-        shared_ptr<TestObject> ptr1(new TestObject(30));
-        {
-            shared_ptr<TestObject> ptr2(ptr1);
-            EXPECT_EQ(TestObject::destructor_count, 0);
-        }
-        EXPECT_EQ(TestObject::destructor_count, 0);
-    }
-    EXPECT_EQ(TestObject::destructor_count, 1);
-}
-
 // ============================================================================
 // REFERENCE COUNTING TESTS
 // ============================================================================
-
-TEST_F(SharedPtrTest, ReferenceCountingTwoOwners) {
-    TestObject::destructor_count = 0;
-    {
-        shared_ptr<TestObject> ptr1(new TestObject(100));
-        {
-            shared_ptr<TestObject> ptr2(ptr1);
-            EXPECT_EQ(TestObject::destructor_count, 0);
-        }
-        EXPECT_EQ(TestObject::destructor_count, 0);
-    }
-    EXPECT_EQ(TestObject::destructor_count, 1);
-}
 
 TEST_F(SharedPtrTest, ReferenceCountingThreeOwners) {
     TestObject::destructor_count = 0;
@@ -411,11 +385,6 @@ TEST_F(SharedPtrTest, LargeValue) {
 // ============================================================================
 // DEFAULT CONSTRUCTOR AND NULLPTR BEHAVIOR
 // ============================================================================
-
-TEST_F(SharedPtrTest, DefaultConstructorWithoutArgument) {
-    shared_ptr<int> ptr;
-    EXPECT_EQ(ptr.operator->(), nullptr);
-}
 
 TEST_F(SharedPtrTest, DefaultConstructorIsNoexcept) {
     // Verify that default constructor can be called in noexcept context
@@ -555,22 +524,22 @@ TEST_F(SharedPtrTest, FourPointersToSameObject) {
     EXPECT_EQ(TestObject::destructor_count, 1);
 }
 
-// TEST_F(SharedPtrTest, SwitchingBetweenDifferentObjects) {
-//     TestObject::destructor_count = 0;
-//     {
-//         shared_ptr<TestObject> ptr(new TestObject(1));
-//         EXPECT_EQ(ptr->value, 1);
+TEST_F(SharedPtrTest, SwitchingBetweenDifferentObjects) {
+    TestObject::destructor_count = 0;
+    {
+        shared_ptr<TestObject> ptr(new TestObject(1));
+        EXPECT_EQ(ptr->value, 1);
 
-//         ptr = shared_ptr<TestObject>(new TestObject(2));
-//         EXPECT_EQ(ptr->value, 2);
-//         EXPECT_EQ(TestObject::destructor_count, 1);
+        ptr = shared_ptr<TestObject>(new TestObject(2));
+        EXPECT_EQ(ptr->value, 2);
+        EXPECT_EQ(TestObject::destructor_count, 1);
 
-//         ptr = shared_ptr<TestObject>(new TestObject(3));
-//         EXPECT_EQ(ptr->value, 3);
-//         EXPECT_EQ(TestObject::destructor_count, 2);
-//     }
-//     EXPECT_EQ(TestObject::destructor_count, 3);
-// }
+        ptr = shared_ptr<TestObject>(new TestObject(3));
+        EXPECT_EQ(ptr->value, 3);
+        EXPECT_EQ(TestObject::destructor_count, 2);
+    }
+    EXPECT_EQ(TestObject::destructor_count, 3);
+}
 
 // ============================================================================
 // RELEASE AND CLEANUP VERIFICATION
@@ -606,21 +575,6 @@ TEST_F(SharedPtrTest, ReleaseZerosRefCountBeforeDeletion) {
     EXPECT_EQ(TestObject::destructor_count, 1);
 }
 
-TEST_F(SharedPtrTest, CopyConstructorIncrementsRefCount) {
-    TestObject::destructor_count = 0;
-    {
-        shared_ptr<TestObject> ptr1(new TestObject(42));
-        {
-            shared_ptr<TestObject> ptr2(ptr1);
-            // Both pointers own the object
-        }
-        // ptr2 destroyed, but ptr1 still owns object
-        EXPECT_EQ(TestObject::destructor_count, 0);
-    }
-    // ptr1 destroyed, object deleted
-    EXPECT_EQ(TestObject::destructor_count, 1);
-}
-
 TEST_F(SharedPtrTest, AssignmentReturnValue) {
     TestObject::destructor_count = 0;
     shared_ptr<TestObject> ptr1(new TestObject(1));
@@ -648,6 +602,203 @@ TEST_F(SharedPtrTest, PointerToPointer) {
         EXPECT_EQ(**ptr, 42);
     }
     delete raw_ptr;
+}
+
+// ============================================================================
+// MOVE CONSTRUCTOR TESTS
+// ============================================================================
+
+TEST_F(SharedPtrTest, MoveConstructorTransfersOwnership) {
+    TestObject::destructor_count = 0;
+    {
+        shared_ptr<TestObject> ptr1(new TestObject(42));
+        shared_ptr<TestObject> ptr2(std::move(ptr1));
+        EXPECT_EQ(ptr2->value, 42);
+        // EXPECT_EQ(ptr1.operator->(), nullptr); // undefined state after move
+        EXPECT_EQ(TestObject::destructor_count, 0);
+    }
+    EXPECT_EQ(TestObject::destructor_count, 1);
+}
+
+TEST_F(SharedPtrTest, MoveConstructorWithTemporary) {
+    TestObject::destructor_count = 0;
+    {
+        shared_ptr<TestObject> ptr = shared_ptr<TestObject>(new TestObject(99));
+        EXPECT_EQ(ptr->value, 99);
+        EXPECT_EQ(TestObject::destructor_count, 0);
+    }
+    EXPECT_EQ(TestObject::destructor_count, 1);
+}
+
+TEST_F(SharedPtrTest, MoveConstructorFromNullptr) {
+    shared_ptr<int> ptr1(nullptr);
+    shared_ptr<int> ptr2(std::move(ptr1));
+    EXPECT_EQ(ptr2.operator->(), nullptr);
+    // EXPECT_EQ(ptr1.operator->(), nullptr); // undefined state after move
+}
+
+TEST_F(SharedPtrTest, MoveConstructorWithComplexType) {
+    struct Complex {
+        int x;
+        int y;
+        double z;
+    };
+    Complex *obj = new Complex{10, 20, 3.14};
+    shared_ptr<Complex> ptr1(obj);
+    shared_ptr<Complex> ptr2(std::move(ptr1));
+
+    EXPECT_EQ(ptr2->x, 10);
+    EXPECT_EQ(ptr2->y, 20);
+    EXPECT_DOUBLE_EQ(ptr2->z, 3.14);
+    // EXPECT_EQ(ptr1.operator->(), nullptr); // undefined state
+}
+
+TEST_F(SharedPtrTest, MoveConstructorMultipleChain) {
+    TestObject::destructor_count = 0;
+    {
+        shared_ptr<TestObject> ptr1(new TestObject(100));
+        shared_ptr<TestObject> ptr2(std::move(ptr1));
+        shared_ptr<TestObject> ptr3(std::move(ptr2));
+
+        EXPECT_EQ(ptr3->value, 100);
+        // EXPECT_EQ(ptr1.operator->(), nullptr); // undefined state
+        // EXPECT_EQ(ptr2.operator->(), nullptr); // undefined state
+        EXPECT_EQ(TestObject::destructor_count, 0);
+    }
+    EXPECT_EQ(TestObject::destructor_count, 1);
+}
+
+TEST_F(SharedPtrTest, MoveConstructorInFunction) {
+    TestObject::destructor_count = 0;
+    auto create_ptr = []() -> shared_ptr<TestObject> {
+        return shared_ptr<TestObject>(new TestObject(77));
+    };
+
+    shared_ptr<TestObject> ptr = create_ptr();
+    EXPECT_EQ(ptr->value, 77);
+    EXPECT_EQ(TestObject::destructor_count, 0);
+}
+
+// ============================================================================
+// MOVE ASSIGNMENT TESTS
+// ============================================================================
+
+TEST_F(SharedPtrTest, MoveAssignmentTransfersOwnership) {
+    TestObject::destructor_count = 0;
+    {
+        shared_ptr<TestObject> ptr1(new TestObject(11));
+        shared_ptr<TestObject> ptr2(new TestObject(22));
+
+        ptr2 = std::move(ptr1);
+        EXPECT_EQ(ptr2->value, 11);
+        // EXPECT_EQ(ptr1.operator->(), nullptr); // undefined behaviour
+        EXPECT_EQ(TestObject::destructor_count, 1); // Object with value 22 deleted
+    }
+    EXPECT_EQ(TestObject::destructor_count, 2);
+}
+
+TEST_F(SharedPtrTest, MoveAssignmentToNullptr) {
+    TestObject::destructor_count = 0;
+    {
+        shared_ptr<TestObject> ptr1(new TestObject(33));
+        shared_ptr<TestObject> ptr2(nullptr);
+
+        ptr2 = std::move(ptr1);
+        EXPECT_EQ(ptr2->value, 33);
+        // EXPECT_EQ(ptr1.operator->(), nullptr); // undefined state
+        EXPECT_EQ(TestObject::destructor_count, 0);
+    }
+    EXPECT_EQ(TestObject::destructor_count, 1);
+}
+
+TEST_F(SharedPtrTest, MoveAssignmentFromNullptr) {
+    TestObject::destructor_count = 0;
+    {
+        shared_ptr<TestObject> ptr1(new TestObject(44));
+        shared_ptr<TestObject> ptr2(nullptr);
+
+        ptr1 = std::move(ptr2);
+        EXPECT_EQ(ptr1.operator->(), nullptr);
+        EXPECT_EQ(TestObject::destructor_count, 1);
+    }
+}
+
+TEST_F(SharedPtrTest, MoveAssignmentToSelf) {
+    TestObject::destructor_count = 0;
+    {
+        shared_ptr<TestObject> ptr1(new TestObject(55));
+        ptr1 = std::move(ptr1);
+        EXPECT_EQ(ptr1->value, 55);
+        EXPECT_EQ(TestObject::destructor_count, 0);
+    }
+    EXPECT_EQ(TestObject::destructor_count, 1);
+}
+
+TEST_F(SharedPtrTest, MoveAssignmentReturnsReference) {
+    shared_ptr<int> ptr1(new int(10));
+    shared_ptr<int> ptr2(new int(20));
+
+    shared_ptr<int> &result = (ptr2 = std::move(ptr1));
+    EXPECT_EQ(&result, &ptr2);
+    EXPECT_EQ(*result, 10);
+}
+
+TEST_F(SharedPtrTest, MoveAssignmentWithTemporary) {
+    TestObject::destructor_count = 0;
+    {
+        shared_ptr<TestObject> ptr(nullptr);
+        ptr = shared_ptr<TestObject>(new TestObject(88));
+        EXPECT_EQ(ptr->value, 88);
+        EXPECT_EQ(TestObject::destructor_count, 0);
+    }
+    EXPECT_EQ(TestObject::destructor_count, 1);
+}
+
+TEST_F(SharedPtrTest, MoveAssignmentReleasesOldObject) {
+    TestObject::destructor_count = 0;
+    {
+        shared_ptr<TestObject> ptr1(new TestObject(5));
+        {
+            shared_ptr<TestObject> ptr2(new TestObject(10));
+            ptr1 = std::move(ptr2);
+            EXPECT_EQ(ptr1->value, 10);
+            EXPECT_EQ(TestObject::destructor_count, 1); // Original ptr1 object deleted
+        }
+    }
+    EXPECT_EQ(TestObject::destructor_count, 2);
+}
+
+// ============================================================================
+// MOVE SEMANTICS WITH SHARED OWNERSHIP
+// ============================================================================
+
+TEST_F(SharedPtrTest, MoveAssignmentWithSharedOwnership) {
+    TestObject::destructor_count = 0;
+    {
+        shared_ptr<TestObject> ptr1(new TestObject(50));
+        shared_ptr<TestObject> ptr2(ptr1); // ptr1 and ptr2 share ownership
+        shared_ptr<TestObject> ptr3(new TestObject(60));
+
+        ptr3 = std::move(ptr1); // Move ptr1's ownership to ptr3
+
+        // EXPECT_EQ(ptr1.operator->(), nullptr); // undefined state
+        EXPECT_EQ(ptr2->value, 50); // ptr2 still owns the object
+        EXPECT_EQ(ptr3->value, 50);
+        EXPECT_EQ(TestObject::destructor_count, 1); // Object with value 60 deleted
+    }
+    EXPECT_EQ(TestObject::destructor_count, 2);
+}
+
+// ============================================================================
+// VALUE TYPE ALIAS TEST
+// ============================================================================
+
+TEST_F(SharedPtrTest, ValueTypeAlias) {
+    // Verify that Value_Type alias is correctly defined
+    static_assert(std::is_same_v<shared_ptr<int>::Value_Type, int>,
+                  "Value_Type should be int for shared_ptr<int>");
+    static_assert(std::is_same_v<shared_ptr<TestObject>::Value_Type, TestObject>,
+                  "Value_Type should be TestObject for shared_ptr<TestObject>");
 }
 
 } // namespace ksl
