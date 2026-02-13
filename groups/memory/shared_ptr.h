@@ -78,18 +78,18 @@ template <typename T> class shared_ptr {
     }
 };
 
-template <typename T>
-constexpr shared_ptr<T>::shared_ptr() noexcept : cb(new control_block{nullptr, 0}) {}
+template <typename T> constexpr shared_ptr<T>::shared_ptr() noexcept : cb(nullptr) {}
 
-template <typename T>
-constexpr shared_ptr<T>::shared_ptr(std::nullptr_t) noexcept : cb(new control_block{nullptr, 0}) {}
+template <typename T> constexpr shared_ptr<T>::shared_ptr(std::nullptr_t) noexcept : cb(nullptr) {}
 
 template <typename T> shared_ptr<T>::shared_ptr(T *ptr) : cb(new control_block{ptr, 1}) {}
 
 template <typename T> shared_ptr<T>::~shared_ptr() { release(); }
 
 template <typename T> shared_ptr<T>::shared_ptr(const shared_ptr<T> &rhs) noexcept : cb(rhs.cb) {
-    ++cb->ref_count;
+    if (cb) {
+        ++cb->ref_count;
+    }
 }
 
 template <typename T> shared_ptr<T>::shared_ptr(shared_ptr<T> &&rhs) noexcept : cb(nullptr) {
@@ -100,7 +100,9 @@ template <typename T> shared_ptr<T> &shared_ptr<T>::operator=(const shared_ptr<T
     if (this != &rhs) {
         release();
         this->cb = rhs.cb;
-        this->cb->ref_count++;
+        if (this->cb) {
+            ++this->cb->ref_count;
+        }
     }
     return *this;
 }
