@@ -2,6 +2,10 @@
 
 * This repository contains my implementation of some component in the cpp standard library
 
+## Standard Library Implemented
+
+* `std::shared_ptr`
+
 ## Inside The Project
 
 * Root `CMakeLists.txt`: This setups up the project. it includes specifing the minimum `cmake` version, the name of the project and the `C++` version.
