@@ -360,19 +360,85 @@ TEST_F(SharedPtrTest, DestructorAfterReleasing) {
     EXPECT_EQ(TestObject::destructor_count, 2);
 }
 
-TEST_F(SharedPtrTest, DestructorNullptrCastedToTestObject) {
+// ============================================================================
+// RESET METHOD TESTS
+// ============================================================================
+
+TEST_F(SharedPtrTest, ResetWithoutArguments) {
     TestObject::destructor_count = 0;
     {
-        shared_ptr<TestObject> ptr1((TestObject *)nullptr);
-        {
-            shared_ptr<TestObject> ptr2(ptr1);
-            EXPECT_EQ(ptr1.use_count(), 2);
-            EXPECT_EQ(ptr2.use_count(), 2);
-        }
-        EXPECT_EQ(ptr1.use_count(), 1);
+        shared_ptr<TestObject> ptr(new TestObject(42));
+        EXPECT_EQ(ptr.use_count(), 1);
+        ptr.reset();
+        EXPECT_EQ(ptr.get(), nullptr);
+        EXPECT_EQ(ptr.use_count(), 0);
+        EXPECT_EQ(TestObject::destructor_count, 1);
+    }
+}
+
+TEST_F(SharedPtrTest, ResetWithoutArgumentsOnSharedOwnership) {
+    TestObject::destructor_count = 0;
+    {
+        shared_ptr<TestObject> ptr1(new TestObject(50));
+        shared_ptr<TestObject> ptr2(ptr1);
+        EXPECT_EQ(ptr1.use_count(), 2);
+        ptr1.reset();
+        EXPECT_EQ(ptr1.get(), nullptr);
+        EXPECT_EQ(ptr1.use_count(), 0);
+        EXPECT_EQ(ptr2.use_count(), 1);
+        EXPECT_EQ(ptr2->value, 50);
         EXPECT_EQ(TestObject::destructor_count, 0);
     }
-    EXPECT_EQ(TestObject::destructor_count, 0);
+    EXPECT_EQ(TestObject::destructor_count, 1);
+}
+
+TEST_F(SharedPtrTest, ResetWithNewPointer) {
+    TestObject::destructor_count = 0;
+    {
+        shared_ptr<TestObject> ptr(new TestObject(10));
+        ptr.reset(new TestObject(20));
+        EXPECT_EQ(ptr->value, 20);
+        EXPECT_EQ(ptr.use_count(), 1);
+        EXPECT_EQ(TestObject::destructor_count, 1);
+    }
+    EXPECT_EQ(TestObject::destructor_count, 2);
+}
+
+TEST_F(SharedPtrTest, ResetWithNewPointerOnSharedOwnership) {
+    TestObject::destructor_count = 0;
+    {
+        shared_ptr<TestObject> ptr1(new TestObject(5));
+        shared_ptr<TestObject> ptr2(ptr1);
+        EXPECT_EQ(ptr1.use_count(), 2);
+        ptr1.reset(new TestObject(15));
+        EXPECT_EQ(ptr1->value, 15);
+        EXPECT_EQ(ptr1.use_count(), 1);
+        EXPECT_EQ(ptr2->value, 5);
+        EXPECT_EQ(ptr2.use_count(), 1);
+        EXPECT_EQ(TestObject::destructor_count, 0);
+    }
+    EXPECT_EQ(TestObject::destructor_count, 2);
+}
+
+TEST_F(SharedPtrTest, ResetWithNullptr) {
+    TestObject::destructor_count = 0;
+    {
+        shared_ptr<TestObject> ptr(new TestObject(42));
+        ptr.reset(nullptr); // the nullptr would be casted to T* and passed to reset(T*), and hence
+                            // the the ref count would be 1
+        EXPECT_EQ(ptr.get(), nullptr);
+        EXPECT_EQ(ptr.use_count(), 1);
+        EXPECT_EQ(TestObject::destructor_count, 1);
+    }
+}
+
+TEST_F(SharedPtrTest, ResetNullptrPtr) {
+    {
+        shared_ptr<TestObject> ptr;
+        ptr.reset();
+        EXPECT_EQ(ptr.get(), nullptr);
+        EXPECT_EQ(ptr.use_count(), 0);
+    }
 }
 
 // ============================================================================

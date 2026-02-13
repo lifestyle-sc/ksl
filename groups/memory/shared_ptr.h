@@ -76,6 +76,14 @@ template <typename T> class shared_ptr {
         }
         return 0;
     }
+
+  public:
+    inline void reset() noexcept { release(); }
+
+    inline void reset(T *ptr) {
+        release();
+        cb = new control_block{ptr, 1};
+    }
 };
 
 template <typename T> constexpr shared_ptr<T>::shared_ptr() noexcept : cb(nullptr) {}
