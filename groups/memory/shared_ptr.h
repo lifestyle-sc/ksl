@@ -68,6 +68,8 @@ template <typename T> class shared_ptr {
 
     [[nodiscard]] T *operator->() const noexcept { return get(); }
 
+    [[nodiscard]] operator bool() const noexcept { return get() != nullptr; };
+
   public:
     // OBSERVERS
     [[nodiscard]] inline long use_count() const noexcept {

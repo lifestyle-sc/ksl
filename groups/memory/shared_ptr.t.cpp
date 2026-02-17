@@ -424,12 +424,12 @@ TEST_F(SharedPtrTest, ResetWithNullptr) {
     TestObject::destructor_count = 0;
     {
         shared_ptr<TestObject> ptr(new TestObject(42));
-        ptr.reset(nullptr); // the nullptr would be casted to T* and passed to reset(T*), and hence
-                            // the the ref count would be 1
+        ptr.reset(nullptr);
         EXPECT_EQ(ptr.get(), nullptr);
         EXPECT_EQ(ptr.use_count(), 1);
         EXPECT_EQ(TestObject::destructor_count, 1);
     }
+    EXPECT_EQ(TestObject::destructor_count, 1);
 }
 
 TEST_F(SharedPtrTest, ResetNullptrPtr) {
@@ -439,6 +439,50 @@ TEST_F(SharedPtrTest, ResetNullptrPtr) {
         EXPECT_EQ(ptr.get(), nullptr);
         EXPECT_EQ(ptr.use_count(), 0);
     }
+}
+
+// ============================================================================
+// OPERATOR BOOL TESTS
+// ============================================================================
+
+TEST_F(SharedPtrTest, OperatorBoolWithValidPointer) {
+    shared_ptr<TestObject> ptr(new TestObject(42));
+    EXPECT_TRUE(ptr);
+    EXPECT_TRUE(static_cast<bool>(ptr));
+}
+
+TEST_F(SharedPtrTest, OperatorBoolWithNullptr) {
+    shared_ptr<TestObject> ptr;
+    EXPECT_FALSE(ptr);
+    EXPECT_FALSE(static_cast<bool>(ptr));
+}
+
+TEST_F(SharedPtrTest, OperatorBoolAfterReset) {
+    TestObject::destructor_count = 0;
+    {
+        shared_ptr<TestObject> ptr(new TestObject(42));
+        EXPECT_TRUE(ptr);
+        ptr.reset();
+        EXPECT_FALSE(ptr);
+        EXPECT_EQ(TestObject::destructor_count, 1);
+    }
+}
+
+TEST_F(SharedPtrTest, OperatorBoolAfterMove) {
+    shared_ptr<TestObject> ptr1(new TestObject(42));
+    shared_ptr<TestObject> ptr2(std::move(ptr1));
+    EXPECT_FALSE(ptr1);
+    EXPECT_TRUE(ptr2);
+}
+
+TEST_F(SharedPtrTest, OperatorBoolWithSharedOwnership) {
+    shared_ptr<TestObject> ptr1(new TestObject(42));
+    shared_ptr<TestObject> ptr2(ptr1);
+    EXPECT_TRUE(ptr1);
+    EXPECT_TRUE(ptr2);
+    ptr1.reset();
+    EXPECT_FALSE(ptr1);
+    EXPECT_TRUE(ptr2);
 }
 
 // ============================================================================
