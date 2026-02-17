@@ -8,7 +8,7 @@ if [[ "$#" -gt 0 && "$1" == "--verify-only" ]]; then
     shift
 fi
 
-default_dirs=( ./src ./bench )
+default_dirs=( ./src ./bench ./groups)
 
 if [[ "$#" -gt 0 ]]; then
     src_dirs=( "$@" )

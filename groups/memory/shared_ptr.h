@@ -1,0 +1,136 @@
+#pragma once
+
+#include <algorithm>
+#include <cstddef>
+#include <memory>
+
+namespace ksl {
+template <typename T, typename Deleter = std::default_delete<T>> class shared_ptr {
+    struct control_block {
+        T *ptr;
+        size_t ref_count;
+        Deleter deleter;
+    };
+
+    control_block *cb;
+
+    inline void release() {
+        if (cb) {
+            --cb->ref_count;
+            if (cb->ref_count == 0) {
+                cb->deleter(cb->ptr);
+                delete cb;
+            }
+            cb = nullptr;
+        }
+    }
+
+  public:
+    using Value_Type = T;
+
+  public:
+    // Constructor
+    /// Default constructor that contains no managed object and zero
+    /// shared references
+    constexpr shared_ptr() noexcept;
+
+    constexpr shared_ptr(std::nullptr_t) noexcept;
+
+    /// Creates a shared_ptr that manages the given raw pointer.
+    explicit shared_ptr(T *ptr);
+
+    // Copy constructor
+    shared_ptr(const shared_ptr<T> &rhs) noexcept;
+
+    // Move constructor
+    shared_ptr(shared_ptr<T> &&rhs) noexcept;
+
+    // Copy assignment
+    /// Assignment operator that deletes the current managed object and
+    /// takes ownership of the given shared_ptr's managed object.
+    shared_ptr<T> &operator=(const shared_ptr<T> &rhs);
+
+    // Move assignment
+    shared_ptr<T> &operator=(shared_ptr<T> &&rhs);
+
+    // Desctructor
+    /// Destroys the managed object if this is the last shared_ptr owning it.
+    ~shared_ptr();
+
+  public:
+    // ACCESSORS
+    [[nodiscard]] inline T *get() const noexcept {
+        if (cb) {
+            return cb->ptr;
+        }
+        return nullptr;
+    }
+
+    [[nodiscard]] T &operator*() const noexcept { return *(get()); }
+
+    [[nodiscard]] T *operator->() const noexcept { return get(); }
+
+    [[nodiscard]] operator bool() const noexcept { return get() != nullptr; };
+
+  public:
+    // OBSERVERS
+    [[nodiscard]] inline long use_count() const noexcept {
+        if (cb) {
+            return cb->ref_count;
+        }
+        return 0;
+    }
+
+  public:
+    inline void reset() { release(); }
+
+    inline void reset(T *ptr) {
+        release();
+        cb = new control_block{ptr, 1};
+    }
+};
+
+template <typename T, typename Deleter>
+constexpr shared_ptr<T, Deleter>::shared_ptr() noexcept : cb(nullptr) {}
+
+template <typename T, typename Deleter>
+constexpr shared_ptr<T, Deleter>::shared_ptr(std::nullptr_t) noexcept : cb(nullptr) {}
+
+template <typename T, typename Deleter>
+shared_ptr<T, Deleter>::shared_ptr(T *ptr) : cb(new control_block{ptr, 1}) {}
+
+template <typename T, typename Deleter> shared_ptr<T, Deleter>::~shared_ptr() { release(); }
+
+template <typename T, typename Deleter>
+shared_ptr<T, Deleter>::shared_ptr(const shared_ptr<T> &rhs) noexcept : cb(rhs.cb) {
+    if (cb) {
+        ++cb->ref_count;
+    }
+}
+
+template <typename T, typename Deleter>
+shared_ptr<T, Deleter>::shared_ptr(shared_ptr<T> &&rhs) noexcept : cb(nullptr) {
+    std::swap(this->cb, rhs.cb);
+}
+
+template <typename T, typename Deleter>
+shared_ptr<T> &shared_ptr<T, Deleter>::operator=(const shared_ptr<T> &rhs) {
+    if (this != &rhs) {
+        release();
+        this->cb = rhs.cb;
+        if (this->cb) {
+            ++this->cb->ref_count;
+        }
+    }
+    return *this;
+}
+
+template <typename T, typename Deleter>
+shared_ptr<T> &shared_ptr<T, Deleter>::operator=(shared_ptr<T> &&rhs) {
+    if (this != &rhs) {
+        release();
+        std::swap(this->cb, rhs.cb);
+    }
+    return *this;
+}
+} // namespace ksl
