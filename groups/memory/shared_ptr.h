@@ -2,12 +2,14 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <memory>
 
 namespace ksl {
-template <typename T> class shared_ptr {
+template <typename T, typename Deleter = std::default_delete<T>> class shared_ptr {
     struct control_block {
         T *ptr;
         size_t ref_count;
+        Deleter deleter;
     };
 
     control_block *cb;
@@ -16,7 +18,7 @@ template <typename T> class shared_ptr {
         if (cb) {
             --cb->ref_count;
             if (cb->ref_count == 0) {
-                delete cb->ptr;
+                cb->deleter(cb->ptr);
                 delete cb;
             }
             cb = nullptr;
@@ -88,25 +90,31 @@ template <typename T> class shared_ptr {
     }
 };
 
-template <typename T> constexpr shared_ptr<T>::shared_ptr() noexcept : cb(nullptr) {}
+template <typename T, typename Deleter>
+constexpr shared_ptr<T, Deleter>::shared_ptr() noexcept : cb(nullptr) {}
 
-template <typename T> constexpr shared_ptr<T>::shared_ptr(std::nullptr_t) noexcept : cb(nullptr) {}
+template <typename T, typename Deleter>
+constexpr shared_ptr<T, Deleter>::shared_ptr(std::nullptr_t) noexcept : cb(nullptr) {}
 
-template <typename T> shared_ptr<T>::shared_ptr(T *ptr) : cb(new control_block{ptr, 1}) {}
+template <typename T, typename Deleter>
+shared_ptr<T, Deleter>::shared_ptr(T *ptr) : cb(new control_block{ptr, 1}) {}
 
-template <typename T> shared_ptr<T>::~shared_ptr() { release(); }
+template <typename T, typename Deleter> shared_ptr<T, Deleter>::~shared_ptr() { release(); }
 
-template <typename T> shared_ptr<T>::shared_ptr(const shared_ptr<T> &rhs) noexcept : cb(rhs.cb) {
+template <typename T, typename Deleter>
+shared_ptr<T, Deleter>::shared_ptr(const shared_ptr<T> &rhs) noexcept : cb(rhs.cb) {
     if (cb) {
         ++cb->ref_count;
     }
 }
 
-template <typename T> shared_ptr<T>::shared_ptr(shared_ptr<T> &&rhs) noexcept : cb(nullptr) {
+template <typename T, typename Deleter>
+shared_ptr<T, Deleter>::shared_ptr(shared_ptr<T> &&rhs) noexcept : cb(nullptr) {
     std::swap(this->cb, rhs.cb);
 }
 
-template <typename T> shared_ptr<T> &shared_ptr<T>::operator=(const shared_ptr<T> &rhs) {
+template <typename T, typename Deleter>
+shared_ptr<T> &shared_ptr<T, Deleter>::operator=(const shared_ptr<T> &rhs) {
     if (this != &rhs) {
         release();
         this->cb = rhs.cb;
@@ -117,7 +125,8 @@ template <typename T> shared_ptr<T> &shared_ptr<T>::operator=(const shared_ptr<T
     return *this;
 }
 
-template <typename T> shared_ptr<T> &shared_ptr<T>::operator=(shared_ptr<T> &&rhs) {
+template <typename T, typename Deleter>
+shared_ptr<T> &shared_ptr<T, Deleter>::operator=(shared_ptr<T> &&rhs) {
     if (this != &rhs) {
         release();
         std::swap(this->cb, rhs.cb);
