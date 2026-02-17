@@ -78,7 +78,7 @@ template <typename T> class shared_ptr {
     }
 
   public:
-    inline void reset() noexcept { release(); }
+    inline void reset() { release(); }
 
     inline void reset(T *ptr) {
         release();
