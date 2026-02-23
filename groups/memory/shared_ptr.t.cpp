@@ -540,6 +540,25 @@ TEST_F(SharedPtrTest, CustomDeleterWithReset) {
     }
 }
 
+TEST_F(SharedPtrTest, CustomDeleterWithResetNewPointerDefaultDeleter) {
+    TestObject::destructor_count = 0;
+    int deleter_call_count = 0;
+    {
+        auto custom_deleter = [&deleter_call_count](TestObject *ptr) {
+            deleter_call_count++;
+            delete ptr;
+        };
+        shared_ptr<TestObject> ptr(new TestObject(5), custom_deleter);
+        EXPECT_EQ(deleter_call_count, 0);
+        ptr.reset(new TestObject(15));
+        EXPECT_EQ(deleter_call_count, 1);
+        EXPECT_EQ(ptr->value, 15);
+        EXPECT_EQ(ptr.use_count(), 1);
+        EXPECT_EQ(TestObject::destructor_count, 1);
+    }
+    EXPECT_EQ(TestObject::destructor_count, 2);
+}
+
 TEST_F(SharedPtrTest, CustomDeleterWithResetNewPointer) {
     TestObject::destructor_count = 0;
     int deleter_call_count = 0;
