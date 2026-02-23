@@ -183,7 +183,7 @@ TEST_F(SharedPtrTest, CopyAssignmentFromNull) {
         shared_ptr<TestObject> ptr(new TestObject(5));
         shared_ptr<TestObject> null_ptr(nullptr);
         ptr = null_ptr;
-        EXPECT_EQ(ptr.get(), nullptr);
+        EXPECT_FALSE(ptr);
         EXPECT_EQ(ptr.use_count(), 0);
         EXPECT_EQ(TestObject::destructor_count, 1);
     }
@@ -202,7 +202,7 @@ TEST_F(SharedPtrTest, MoveAssignmentBasic) {
         ptr2 = std::move(ptr1);
         EXPECT_EQ(ptr2->value, 11);
         EXPECT_EQ(ptr2.use_count(), 1);
-        EXPECT_EQ(ptr1.get(), nullptr);
+        EXPECT_FALSE(ptr1);
         EXPECT_EQ(ptr1.use_count(), 0);
         EXPECT_EQ(TestObject::destructor_count, 1);
     }
@@ -238,7 +238,7 @@ TEST_F(SharedPtrTest, MoveAssignmentWithSharedOwnership) {
 
         ptr3 = std::move(ptr1);
 
-        EXPECT_EQ(ptr1.get(), nullptr);
+        EXPECT_FALSE(ptr1);
         EXPECT_EQ(ptr2->value, 50);
         EXPECT_EQ(ptr3->value, 50);
         EXPECT_EQ(ptr2.use_count(), 2);
@@ -258,7 +258,7 @@ TEST_F(SharedPtrTest, GetAccessor) {
     EXPECT_EQ(ptr.get(), raw);
 }
 
-TEST_F(SharedPtrTest, GetAccessorOnNullptr) {
+TEST_F(SharedPtrTest, GetAccessorOnNull) {
     shared_ptr<int> ptr;
     EXPECT_EQ(ptr.get(), nullptr);
 }
@@ -370,7 +370,7 @@ TEST_F(SharedPtrTest, ResetWithoutArguments) {
         shared_ptr<TestObject> ptr(new TestObject(42));
         EXPECT_EQ(ptr.use_count(), 1);
         ptr.reset();
-        EXPECT_EQ(ptr.get(), nullptr);
+        EXPECT_FALSE(ptr);
         EXPECT_EQ(ptr.use_count(), 0);
         EXPECT_EQ(TestObject::destructor_count, 1);
     }
@@ -383,7 +383,7 @@ TEST_F(SharedPtrTest, ResetWithoutArgumentsOnSharedOwnership) {
         shared_ptr<TestObject> ptr2(ptr1);
         EXPECT_EQ(ptr1.use_count(), 2);
         ptr1.reset();
-        EXPECT_EQ(ptr1.get(), nullptr);
+        EXPECT_FALSE(ptr1);
         EXPECT_EQ(ptr1.use_count(), 0);
         EXPECT_EQ(ptr2.use_count(), 1);
         EXPECT_EQ(ptr2->value, 50);
@@ -425,7 +425,7 @@ TEST_F(SharedPtrTest, ResetWithNullptr) {
     {
         shared_ptr<TestObject> ptr(new TestObject(42));
         ptr.reset(nullptr);
-        EXPECT_EQ(ptr.get(), nullptr);
+        EXPECT_FALSE(ptr);
         EXPECT_EQ(ptr.use_count(), 1);
         EXPECT_EQ(TestObject::destructor_count, 1);
     }
@@ -436,7 +436,7 @@ TEST_F(SharedPtrTest, ResetNullptrPtr) {
     {
         shared_ptr<TestObject> ptr;
         ptr.reset();
-        EXPECT_EQ(ptr.get(), nullptr);
+        EXPECT_FALSE(ptr);
         EXPECT_EQ(ptr.use_count(), 0);
     }
 }
@@ -483,6 +483,103 @@ TEST_F(SharedPtrTest, OperatorBoolWithSharedOwnership) {
     ptr1.reset();
     EXPECT_FALSE(ptr1);
     EXPECT_TRUE(ptr2);
+}
+
+// ============================================================================
+// CUSTOM DELETER TESTS
+// ============================================================================
+
+TEST_F(SharedPtrTest, CustomDeleterCalled) {
+    TestObject::destructor_count = 0;
+    int deleter_call_count = 0;
+    {
+        auto custom_deleter = [&deleter_call_count](TestObject *ptr) {
+            deleter_call_count++;
+            delete ptr;
+        };
+        shared_ptr<TestObject> ptr(new TestObject(42), custom_deleter);
+        EXPECT_EQ(ptr->value, 42);
+        EXPECT_EQ(ptr.use_count(), 1);
+        EXPECT_EQ(deleter_call_count, 0);
+        EXPECT_EQ(TestObject::destructor_count, 0);
+    }
+    EXPECT_EQ(deleter_call_count, 1);
+    EXPECT_EQ(TestObject::destructor_count, 1);
+}
+
+TEST_F(SharedPtrTest, CustomDeleterNotCalledWithSharedOwnership) {
+    TestObject::destructor_count = 0;
+    int deleter_call_count = 0;
+    {
+        auto custom_deleter = [&deleter_call_count](TestObject *ptr) {
+            deleter_call_count++;
+            delete ptr;
+        };
+        shared_ptr<TestObject> ptr1(new TestObject(50), custom_deleter);
+        shared_ptr<TestObject> ptr2(ptr1);
+        EXPECT_EQ(ptr1.use_count(), 2);
+        EXPECT_EQ(deleter_call_count, 0);
+    }
+    EXPECT_EQ(deleter_call_count, 1);
+    EXPECT_EQ(TestObject::destructor_count, 1);
+}
+
+TEST_F(SharedPtrTest, CustomDeleterWithReset) {
+    TestObject::destructor_count = 0;
+    int deleter_call_count = 0;
+    {
+        auto custom_deleter = [&deleter_call_count](TestObject *ptr) {
+            deleter_call_count++;
+            delete ptr;
+        };
+        shared_ptr<TestObject> ptr(new TestObject(10), custom_deleter);
+        EXPECT_EQ(deleter_call_count, 0);
+        ptr.reset();
+        EXPECT_EQ(deleter_call_count, 1);
+        EXPECT_EQ(TestObject::destructor_count, 1);
+    }
+}
+
+TEST_F(SharedPtrTest, CustomDeleterWithResetNewPointer) {
+    TestObject::destructor_count = 0;
+    int deleter_call_count = 0;
+    {
+        auto custom_deleter = [&deleter_call_count](TestObject *ptr) {
+            deleter_call_count++;
+            delete ptr;
+        };
+        shared_ptr<TestObject> ptr(new TestObject(5), custom_deleter);
+        EXPECT_EQ(deleter_call_count, 0);
+        ptr.reset(new TestObject(15), custom_deleter);
+        EXPECT_EQ(deleter_call_count, 1);
+        EXPECT_EQ(ptr->value, 15);
+        EXPECT_EQ(ptr.use_count(), 1);
+        EXPECT_EQ(TestObject::destructor_count, 1);
+    }
+    EXPECT_EQ(TestObject::destructor_count, 2);
+}
+
+TEST_F(SharedPtrTest, CustomDeleterWithFunctor) {
+    struct CountingDeleter {
+        int *call_count;
+        explicit CountingDeleter(int *count) : call_count(count) {}
+        void operator()(TestObject *ptr) const {
+            (*call_count)++;
+            delete ptr;
+        }
+    };
+
+    TestObject::destructor_count = 0;
+    int deleter_call_count = 0;
+    {
+        CountingDeleter deleter(&deleter_call_count);
+        shared_ptr<TestObject> ptr(new TestObject(42), deleter);
+        EXPECT_EQ(ptr->value, 42);
+        EXPECT_EQ(deleter_call_count, 0);
+        EXPECT_EQ(TestObject::destructor_count, 0);
+    }
+    EXPECT_EQ(deleter_call_count, 1);
+    EXPECT_EQ(TestObject::destructor_count, 1);
 }
 
 // ============================================================================
