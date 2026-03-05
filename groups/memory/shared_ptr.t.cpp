@@ -8,16 +8,20 @@ namespace ksl {
 
 class SharedPtrTest : public ::testing::Test {
   protected:
-    struct TestObject {
+    struct Base {
+        virtual ~Base() = default;
+    };
+
+    struct Derived : Base {
         int value;
         static int destructor_count;
 
-        explicit TestObject(int v = 42) : value(v) {}
-        ~TestObject() { destructor_count++; }
+        explicit Derived(int v = 42) : value(v) {}
+        ~Derived() { destructor_count++; }
     };
 };
 
-int SharedPtrTest::TestObject::destructor_count = 0;
+int SharedPtrTest::Derived::destructor_count = 0;
 
 // ============================================================================
 // CONSTRUCTORS: DEFAULT, NULLPTR, AND RAW POINTER
@@ -35,18 +39,18 @@ TEST_F(SharedPtrTest, DefaultAndNullptrConstructor) {
 }
 
 TEST_F(SharedPtrTest, ConstructWithRawPointer) {
-    TestObject::destructor_count = 0;
+    Derived::destructor_count = 0;
     {
         int *raw_int = new int(42);
-        TestObject *raw_obj = new TestObject(100);
+        Derived *raw_obj = new Derived(100);
         shared_ptr<int> ptr1(raw_int);
-        shared_ptr<TestObject> ptr2(raw_obj);
+        shared_ptr<Derived> ptr2(raw_obj);
         EXPECT_EQ(*ptr1, 42);
         EXPECT_EQ(ptr2->value, 100);
         EXPECT_EQ(ptr1.use_count(), 1);
         EXPECT_EQ(ptr2.use_count(), 1);
     }
-    EXPECT_EQ(TestObject::destructor_count, 1);
+    EXPECT_EQ(Derived::destructor_count, 1);
 }
 
 // ============================================================================
@@ -54,34 +58,34 @@ TEST_F(SharedPtrTest, ConstructWithRawPointer) {
 // ============================================================================
 
 TEST_F(SharedPtrTest, CopyConstructor) {
-    TestObject::destructor_count = 0;
+    Derived::destructor_count = 0;
     {
-        shared_ptr<TestObject> ptr1(new TestObject(42));
-        shared_ptr<TestObject> ptr2(ptr1);
-        shared_ptr<TestObject> ptr3(ptr1);
+        shared_ptr<Derived> ptr1(new Derived(42));
+        shared_ptr<Derived> ptr2(ptr1);
+        shared_ptr<Derived> ptr3(ptr1);
 
         EXPECT_EQ(ptr1.get(), ptr2.get());
         EXPECT_EQ(ptr1.get(), ptr3.get());
         EXPECT_EQ(ptr1.use_count(), 3);
         EXPECT_EQ(ptr2.use_count(), 3);
         EXPECT_EQ(ptr3.use_count(), 3);
-        EXPECT_EQ(TestObject::destructor_count, 0);
+        EXPECT_EQ(Derived::destructor_count, 0);
     }
-    EXPECT_EQ(TestObject::destructor_count, 1);
+    EXPECT_EQ(Derived::destructor_count, 1);
 }
 
 TEST_F(SharedPtrTest, CopyConstructorFromNullptr) {
-    shared_ptr<TestObject> ptr1(nullptr);
-    shared_ptr<TestObject> ptr2(ptr1);
+    shared_ptr<Derived> ptr1(nullptr);
+    shared_ptr<Derived> ptr2(ptr1);
     EXPECT_EQ(ptr2.get(), nullptr);
     EXPECT_EQ(ptr2.use_count(), 0);
 }
 
 TEST_F(SharedPtrTest, MoveConstructor) {
-    TestObject::destructor_count = 0;
+    Derived::destructor_count = 0;
     {
-        shared_ptr<TestObject> ptr1(new TestObject(42));
-        shared_ptr<TestObject> ptr2(std::move(ptr1));
+        shared_ptr<Derived> ptr1(new Derived(42));
+        shared_ptr<Derived> ptr2(std::move(ptr1));
 
         EXPECT_EQ(ptr2->value, 42);
         EXPECT_EQ(ptr2.use_count(), 1);
@@ -89,25 +93,25 @@ TEST_F(SharedPtrTest, MoveConstructor) {
         EXPECT_EQ(ptr1.use_count(), 0);
         EXPECT_FALSE(ptr1);
         EXPECT_TRUE(ptr2);
-        EXPECT_EQ(TestObject::destructor_count, 0);
+        EXPECT_EQ(Derived::destructor_count, 0);
     }
-    EXPECT_EQ(TestObject::destructor_count, 1);
+    EXPECT_EQ(Derived::destructor_count, 1);
 }
 
 TEST_F(SharedPtrTest, MoveConstructorChain) {
-    TestObject::destructor_count = 0;
+    Derived::destructor_count = 0;
     {
-        shared_ptr<TestObject> ptr1(new TestObject(100));
-        shared_ptr<TestObject> ptr2(std::move(ptr1));
-        shared_ptr<TestObject> ptr3(std::move(ptr2));
+        shared_ptr<Derived> ptr1(new Derived(100));
+        shared_ptr<Derived> ptr2(std::move(ptr1));
+        shared_ptr<Derived> ptr3(std::move(ptr2));
 
         EXPECT_EQ(ptr3->value, 100);
         EXPECT_EQ(ptr3.use_count(), 1);
         EXPECT_FALSE(ptr1);
         EXPECT_FALSE(ptr2);
-        EXPECT_EQ(TestObject::destructor_count, 0);
+        EXPECT_EQ(Derived::destructor_count, 0);
     }
-    EXPECT_EQ(TestObject::destructor_count, 1);
+    EXPECT_EQ(Derived::destructor_count, 1);
 }
 
 // ============================================================================
@@ -115,31 +119,31 @@ TEST_F(SharedPtrTest, MoveConstructorChain) {
 // ============================================================================
 
 TEST_F(SharedPtrTest, CopyAssignment) {
-    TestObject::destructor_count = 0;
+    Derived::destructor_count = 0;
     {
-        shared_ptr<TestObject> ptr1(new TestObject(10));
-        shared_ptr<TestObject> ptr2(new TestObject(20));
+        shared_ptr<Derived> ptr1(new Derived(10));
+        shared_ptr<Derived> ptr2(new Derived(20));
 
         // Basic copy assignment
         ptr1 = ptr2;
         EXPECT_EQ(ptr1->value, 20);
         EXPECT_EQ(ptr1.use_count(), 2);
         EXPECT_EQ(ptr2.use_count(), 2);
-        EXPECT_EQ(TestObject::destructor_count, 1);
+        EXPECT_EQ(Derived::destructor_count, 1);
     }
-    EXPECT_EQ(TestObject::destructor_count, 2);
+    EXPECT_EQ(Derived::destructor_count, 2);
 }
 
 TEST_F(SharedPtrTest, CopyAssignmentSelfAssignment) {
-    TestObject::destructor_count = 0;
+    Derived::destructor_count = 0;
     {
-        shared_ptr<TestObject> ptr(new TestObject(42));
+        shared_ptr<Derived> ptr(new Derived(42));
         ptr = ptr;
         EXPECT_EQ(ptr->value, 42);
         EXPECT_EQ(ptr.use_count(), 1);
-        EXPECT_EQ(TestObject::destructor_count, 0);
+        EXPECT_EQ(Derived::destructor_count, 0);
     }
-    EXPECT_EQ(TestObject::destructor_count, 1);
+    EXPECT_EQ(Derived::destructor_count, 1);
 }
 
 TEST_F(SharedPtrTest, CopyAssignmentReturnsReference) {
@@ -150,51 +154,51 @@ TEST_F(SharedPtrTest, CopyAssignmentReturnsReference) {
 }
 
 TEST_F(SharedPtrTest, CopyAssignmentFromNull) {
-    TestObject::destructor_count = 0;
+    Derived::destructor_count = 0;
     {
-        shared_ptr<TestObject> ptr(new TestObject(5));
-        shared_ptr<TestObject> null_ptr(nullptr);
+        shared_ptr<Derived> ptr(new Derived(5));
+        shared_ptr<Derived> null_ptr(nullptr);
         ptr = null_ptr;
         EXPECT_FALSE(ptr);
         EXPECT_EQ(ptr.use_count(), 0);
-        EXPECT_EQ(TestObject::destructor_count, 1);
+        EXPECT_EQ(Derived::destructor_count, 1);
     }
 }
 
 TEST_F(SharedPtrTest, MoveAssignment) {
-    TestObject::destructor_count = 0;
+    Derived::destructor_count = 0;
     {
-        shared_ptr<TestObject> ptr1(new TestObject(11));
-        shared_ptr<TestObject> ptr2(new TestObject(22));
+        shared_ptr<Derived> ptr1(new Derived(11));
+        shared_ptr<Derived> ptr2(new Derived(22));
 
         ptr2 = std::move(ptr1);
         EXPECT_EQ(ptr2->value, 11);
         EXPECT_EQ(ptr2.use_count(), 1);
         EXPECT_FALSE(ptr1);
         EXPECT_EQ(ptr1.use_count(), 0);
-        EXPECT_EQ(TestObject::destructor_count, 1);
+        EXPECT_EQ(Derived::destructor_count, 1);
     }
-    EXPECT_EQ(TestObject::destructor_count, 2);
+    EXPECT_EQ(Derived::destructor_count, 2);
 }
 
 TEST_F(SharedPtrTest, MoveAssignmentSelfAssignment) {
-    TestObject::destructor_count = 0;
+    Derived::destructor_count = 0;
     {
-        shared_ptr<TestObject> ptr(new TestObject(55));
+        shared_ptr<Derived> ptr(new Derived(55));
         ptr = std::move(ptr);
         EXPECT_EQ(ptr->value, 55);
         EXPECT_EQ(ptr.use_count(), 1);
-        EXPECT_EQ(TestObject::destructor_count, 0);
+        EXPECT_EQ(Derived::destructor_count, 0);
     }
-    EXPECT_EQ(TestObject::destructor_count, 1);
+    EXPECT_EQ(Derived::destructor_count, 1);
 }
 
 TEST_F(SharedPtrTest, MoveAssignmentWithSharedOwnership) {
-    TestObject::destructor_count = 0;
+    Derived::destructor_count = 0;
     {
-        shared_ptr<TestObject> ptr1(new TestObject(50));
-        shared_ptr<TestObject> ptr2(ptr1);
-        shared_ptr<TestObject> ptr3(new TestObject(60));
+        shared_ptr<Derived> ptr1(new Derived(50));
+        shared_ptr<Derived> ptr2(ptr1);
+        shared_ptr<Derived> ptr3(new Derived(60));
 
         ptr3 = std::move(ptr1);
 
@@ -203,9 +207,9 @@ TEST_F(SharedPtrTest, MoveAssignmentWithSharedOwnership) {
         EXPECT_EQ(ptr3->value, 50);
         EXPECT_EQ(ptr2.use_count(), 2);
         EXPECT_EQ(ptr3.use_count(), 2);
-        EXPECT_EQ(TestObject::destructor_count, 1);
+        EXPECT_EQ(Derived::destructor_count, 1);
     }
-    EXPECT_EQ(TestObject::destructor_count, 2);
+    EXPECT_EQ(Derived::destructor_count, 2);
 }
 
 // ============================================================================
@@ -227,7 +231,7 @@ TEST_F(SharedPtrTest, DereferenceAndArrowOperators) {
     *ptr_int = 100;
     EXPECT_EQ(*ptr_int, 100);
 
-    shared_ptr<TestObject> ptr_obj(new TestObject(77));
+    shared_ptr<Derived> ptr_obj(new Derived(77));
     EXPECT_EQ((*ptr_obj).value, 77);
     EXPECT_EQ(ptr_obj->value, 77);
     ptr_obj->value = 150;
@@ -235,9 +239,9 @@ TEST_F(SharedPtrTest, DereferenceAndArrowOperators) {
 }
 
 TEST_F(SharedPtrTest, OperatorBool) {
-    shared_ptr<TestObject> ptr1(new TestObject(42));
-    shared_ptr<TestObject> ptr2;
-    shared_ptr<TestObject> ptr3(nullptr);
+    shared_ptr<Derived> ptr1(new Derived(42));
+    shared_ptr<Derived> ptr2;
+    shared_ptr<Derived> ptr3(nullptr);
 
     EXPECT_TRUE(ptr1);
     EXPECT_FALSE(ptr2);
@@ -252,16 +256,16 @@ TEST_F(SharedPtrTest, OperatorBool) {
 // ============================================================================
 
 TEST_F(SharedPtrTest, UseCount) {
-    shared_ptr<TestObject> ptr1(new TestObject(42));
+    shared_ptr<Derived> ptr1(new Derived(42));
     EXPECT_EQ(ptr1.use_count(), 1);
 
     {
-        shared_ptr<TestObject> ptr2(ptr1);
+        shared_ptr<Derived> ptr2(ptr1);
         EXPECT_EQ(ptr1.use_count(), 2);
         EXPECT_EQ(ptr2.use_count(), 2);
 
         {
-            shared_ptr<TestObject> ptr3(ptr1);
+            shared_ptr<Derived> ptr3(ptr1);
             EXPECT_EQ(ptr1.use_count(), 3);
         }
         EXPECT_EQ(ptr1.use_count(), 2);
@@ -270,22 +274,22 @@ TEST_F(SharedPtrTest, UseCount) {
 }
 
 TEST_F(SharedPtrTest, UseCountAfterMove) {
-    shared_ptr<TestObject> ptr1(new TestObject(42));
-    shared_ptr<TestObject> ptr2(std::move(ptr1));
+    shared_ptr<Derived> ptr1(new Derived(42));
+    shared_ptr<Derived> ptr2(std::move(ptr1));
 
     EXPECT_EQ(ptr1.use_count(), 0);
     EXPECT_EQ(ptr2.use_count(), 1);
 }
 
 TEST_F(SharedPtrTest, UseCountAfterAssignment) {
-    TestObject::destructor_count = 0;
-    shared_ptr<TestObject> ptr1(new TestObject(1));
-    shared_ptr<TestObject> ptr2(new TestObject(2));
+    Derived::destructor_count = 0;
+    shared_ptr<Derived> ptr1(new Derived(1));
+    shared_ptr<Derived> ptr2(new Derived(2));
 
     EXPECT_EQ(ptr1.use_count(), 1);
     EXPECT_EQ(ptr2.use_count(), 1);
 
-    shared_ptr<TestObject> ptr3(ptr1);
+    shared_ptr<Derived> ptr3(ptr1);
     EXPECT_EQ(ptr1.use_count(), 2);
     EXPECT_EQ(ptr3.use_count(), 2);
 
@@ -300,10 +304,10 @@ TEST_F(SharedPtrTest, UseCountAfterAssignment) {
 // ============================================================================
 
 TEST_F(SharedPtrTest, ResetWithoutArguments) {
-    TestObject::destructor_count = 0;
+    Derived::destructor_count = 0;
     {
-        shared_ptr<TestObject> ptr1(new TestObject(42));
-        shared_ptr<TestObject> ptr2(ptr1);
+        shared_ptr<Derived> ptr1(new Derived(42));
+        shared_ptr<Derived> ptr2(ptr1);
 
         EXPECT_EQ(ptr1.use_count(), 2);
         ptr1.reset();
@@ -311,39 +315,39 @@ TEST_F(SharedPtrTest, ResetWithoutArguments) {
         EXPECT_EQ(ptr1.use_count(), 0);
         EXPECT_EQ(ptr2.use_count(), 1);
         EXPECT_EQ(ptr2->value, 42);
-        EXPECT_EQ(TestObject::destructor_count, 0);
+        EXPECT_EQ(Derived::destructor_count, 0);
     }
-    EXPECT_EQ(TestObject::destructor_count, 1);
+    EXPECT_EQ(Derived::destructor_count, 1);
 }
 
 TEST_F(SharedPtrTest, ResetWithNewPointer) {
-    TestObject::destructor_count = 0;
+    Derived::destructor_count = 0;
     {
-        shared_ptr<TestObject> ptr(new TestObject(10));
-        ptr.reset(new TestObject(20));
+        shared_ptr<Derived> ptr(new Derived(10));
+        ptr.reset(new Derived(20));
 
         EXPECT_EQ(ptr->value, 20);
         EXPECT_EQ(ptr.use_count(), 1);
-        EXPECT_EQ(TestObject::destructor_count, 1);
+        EXPECT_EQ(Derived::destructor_count, 1);
     }
-    EXPECT_EQ(TestObject::destructor_count, 2);
+    EXPECT_EQ(Derived::destructor_count, 2);
 }
 
 TEST_F(SharedPtrTest, ResetWithNewPointerSharedOwnership) {
-    TestObject::destructor_count = 0;
+    Derived::destructor_count = 0;
     {
-        shared_ptr<TestObject> ptr1(new TestObject(5));
-        shared_ptr<TestObject> ptr2(ptr1);
+        shared_ptr<Derived> ptr1(new Derived(5));
+        shared_ptr<Derived> ptr2(ptr1);
 
         EXPECT_EQ(ptr1.use_count(), 2);
-        ptr1.reset(new TestObject(15));
+        ptr1.reset(new Derived(15));
         EXPECT_EQ(ptr1->value, 15);
         EXPECT_EQ(ptr1.use_count(), 1);
         EXPECT_EQ(ptr2->value, 5);
         EXPECT_EQ(ptr2.use_count(), 1);
-        EXPECT_EQ(TestObject::destructor_count, 0);
+        EXPECT_EQ(Derived::destructor_count, 0);
     }
-    EXPECT_EQ(TestObject::destructor_count, 2);
+    EXPECT_EQ(Derived::destructor_count, 2);
 }
 
 // ============================================================================
@@ -351,98 +355,98 @@ TEST_F(SharedPtrTest, ResetWithNewPointerSharedOwnership) {
 // ============================================================================
 
 TEST_F(SharedPtrTest, CustomDeleterCalled) {
-    TestObject::destructor_count = 0;
+    Derived::destructor_count = 0;
     int deleter_call_count = 0;
     {
-        auto custom_deleter = [&deleter_call_count](TestObject *ptr) {
+        auto custom_deleter = [&deleter_call_count](Derived *ptr) {
             deleter_call_count++;
             delete ptr;
         };
-        shared_ptr<TestObject> ptr(new TestObject(42), custom_deleter);
+        shared_ptr<Derived> ptr(new Derived(42), custom_deleter);
         EXPECT_EQ(ptr->value, 42);
         EXPECT_EQ(ptr.use_count(), 1);
         EXPECT_EQ(deleter_call_count, 0);
     }
     EXPECT_EQ(deleter_call_count, 1);
-    EXPECT_EQ(TestObject::destructor_count, 1);
+    EXPECT_EQ(Derived::destructor_count, 1);
 }
 
 TEST_F(SharedPtrTest, CustomDeleterWithSharedOwnership) {
-    TestObject::destructor_count = 0;
+    Derived::destructor_count = 0;
     int deleter_call_count = 0;
     {
-        auto custom_deleter = [&deleter_call_count](TestObject *ptr) {
+        auto custom_deleter = [&deleter_call_count](Derived *ptr) {
             deleter_call_count++;
             delete ptr;
         };
-        shared_ptr<TestObject> ptr1(new TestObject(50), custom_deleter);
-        shared_ptr<TestObject> ptr2(ptr1);
+        shared_ptr<Derived> ptr1(new Derived(50), custom_deleter);
+        shared_ptr<Derived> ptr2(ptr1);
 
         EXPECT_EQ(ptr1.use_count(), 2);
         EXPECT_EQ(deleter_call_count, 0);
     }
     EXPECT_EQ(deleter_call_count, 1);
-    EXPECT_EQ(TestObject::destructor_count, 1);
+    EXPECT_EQ(Derived::destructor_count, 1);
 }
 
 TEST_F(SharedPtrTest, CustomDeleterWithReset) {
-    TestObject::destructor_count = 0;
+    Derived::destructor_count = 0;
     int deleter_call_count = 0;
     {
-        auto custom_deleter = [&deleter_call_count](TestObject *ptr) {
+        auto custom_deleter = [&deleter_call_count](Derived *ptr) {
             deleter_call_count++;
             delete ptr;
         };
-        shared_ptr<TestObject> ptr(new TestObject(10), custom_deleter);
+        shared_ptr<Derived> ptr(new Derived(10), custom_deleter);
         EXPECT_EQ(deleter_call_count, 0);
 
         ptr.reset();
         EXPECT_EQ(deleter_call_count, 1);
-        EXPECT_EQ(TestObject::destructor_count, 1);
+        EXPECT_EQ(Derived::destructor_count, 1);
         EXPECT_FALSE(ptr);
     }
 }
 
 TEST_F(SharedPtrTest, CustomDeleterWithResetNewPointer) {
-    TestObject::destructor_count = 0;
+    Derived::destructor_count = 0;
     int deleter_call_count = 0;
     {
-        auto custom_deleter = [&deleter_call_count](TestObject *ptr) {
+        auto custom_deleter = [&deleter_call_count](Derived *ptr) {
             deleter_call_count++;
             delete ptr;
         };
-        shared_ptr<TestObject> ptr(new TestObject(5), custom_deleter);
-        ptr.reset(new TestObject(15), custom_deleter);
+        shared_ptr<Derived> ptr(new Derived(5), custom_deleter);
+        ptr.reset(new Derived(15), custom_deleter);
 
         EXPECT_EQ(deleter_call_count, 1);
         EXPECT_EQ(ptr->value, 15);
         EXPECT_EQ(ptr.use_count(), 1);
-        EXPECT_EQ(TestObject::destructor_count, 1);
+        EXPECT_EQ(Derived::destructor_count, 1);
     }
     EXPECT_EQ(deleter_call_count, 2);
-    EXPECT_EQ(TestObject::destructor_count, 2);
+    EXPECT_EQ(Derived::destructor_count, 2);
 }
 
 TEST_F(SharedPtrTest, CustomDeleterWithFunctor) {
     struct CountingDeleter {
         int *call_count;
         explicit CountingDeleter(int *count) : call_count(count) {}
-        void operator()(TestObject *ptr) const {
+        void operator()(Derived *ptr) const {
             (*call_count)++;
             delete ptr;
         }
     };
 
-    TestObject::destructor_count = 0;
+    Derived::destructor_count = 0;
     int deleter_call_count = 0;
     {
         CountingDeleter deleter(&deleter_call_count);
-        shared_ptr<TestObject> ptr(new TestObject(42), deleter);
+        shared_ptr<Derived> ptr(new Derived(42), deleter);
         EXPECT_EQ(ptr->value, 42);
         EXPECT_EQ(deleter_call_count, 0);
     }
     EXPECT_EQ(deleter_call_count, 1);
-    EXPECT_EQ(TestObject::destructor_count, 1);
+    EXPECT_EQ(Derived::destructor_count, 1);
 }
 
 // ============================================================================
@@ -450,35 +454,35 @@ TEST_F(SharedPtrTest, CustomDeleterWithFunctor) {
 // ============================================================================
 
 TEST_F(SharedPtrTest, ComplexOwnershipScenario) {
-    TestObject::destructor_count = 0;
+    Derived::destructor_count = 0;
     {
-        shared_ptr<TestObject> ptr1;
-        shared_ptr<TestObject> ptr2;
-        shared_ptr<TestObject> ptr3;
+        shared_ptr<Derived> ptr1;
+        shared_ptr<Derived> ptr2;
+        shared_ptr<Derived> ptr3;
         {
-            shared_ptr<TestObject> temp(new TestObject(100));
+            shared_ptr<Derived> temp(new Derived(100));
             ptr1 = temp;
             ptr2 = temp;
             ptr3 = temp;
             EXPECT_EQ(ptr1.use_count(), 4);
-            EXPECT_EQ(TestObject::destructor_count, 0);
+            EXPECT_EQ(Derived::destructor_count, 0);
         }
         EXPECT_EQ(ptr1.use_count(), 3);
-        EXPECT_EQ(TestObject::destructor_count, 0);
+        EXPECT_EQ(Derived::destructor_count, 0);
     }
-    EXPECT_EQ(TestObject::destructor_count, 1);
+    EXPECT_EQ(Derived::destructor_count, 1);
 }
 
 TEST_F(SharedPtrTest, DestructorPreservesWhenOtherOwnersExist) {
-    TestObject::destructor_count = 0;
-    shared_ptr<TestObject> ptr1;
+    Derived::destructor_count = 0;
+    shared_ptr<Derived> ptr1;
     {
-        shared_ptr<TestObject> ptr2(new TestObject(60));
+        shared_ptr<Derived> ptr2(new Derived(60));
         ptr1 = ptr2;
         EXPECT_EQ(ptr1.use_count(), 2);
-        EXPECT_EQ(TestObject::destructor_count, 0);
+        EXPECT_EQ(Derived::destructor_count, 0);
     }
-    EXPECT_EQ(TestObject::destructor_count, 0);
+    EXPECT_EQ(Derived::destructor_count, 0);
     EXPECT_EQ(ptr1->value, 60);
     EXPECT_EQ(ptr1.use_count(), 1);
 }
@@ -486,8 +490,8 @@ TEST_F(SharedPtrTest, DestructorPreservesWhenOtherOwnersExist) {
 TEST_F(SharedPtrTest, ValueTypeAlias) {
     static_assert(std::is_same_v<shared_ptr<int>::Value_Type, int>,
                   "Value_Type should be int for shared_ptr<int>");
-    static_assert(std::is_same_v<shared_ptr<TestObject>::Value_Type, TestObject>,
-                  "Value_Type should be TestObject for shared_ptr<TestObject>");
+    static_assert(std::is_same_v<shared_ptr<Derived>::Value_Type, Derived>,
+                  "Value_Type should be Derived for shared_ptr<Derived>");
 }
 
 // ============================================================================
@@ -495,45 +499,45 @@ TEST_F(SharedPtrTest, ValueTypeAlias) {
 // ============================================================================
 
 TEST_F(SharedPtrTest, WeakPtrDefaultConstructor) {
-    weak_ptr<TestObject> wptr;
+    weak_ptr<Derived> wptr;
     EXPECT_EQ(wptr.use_count(), 0);
     EXPECT_TRUE(wptr.expired());
 }
 
 TEST_F(SharedPtrTest, WeakPtrFromSharedPtr) {
-    TestObject::destructor_count = 0;
+    Derived::destructor_count = 0;
     {
-        shared_ptr<TestObject> sptr(new TestObject(42));
-        weak_ptr<TestObject> wptr(sptr);
+        shared_ptr<Derived> sptr(new Derived(42));
+        weak_ptr<Derived> wptr(sptr);
 
         EXPECT_EQ(wptr.use_count(), 1);
         EXPECT_FALSE(wptr.expired());
 
-        shared_ptr<TestObject> sptr2 = wptr.lock();
+        shared_ptr<Derived> sptr2 = wptr.lock();
         EXPECT_TRUE(sptr2);
         EXPECT_EQ(sptr2->value, 42);
         EXPECT_EQ(sptr.use_count(), 2);
     }
-    EXPECT_EQ(TestObject::destructor_count, 1);
+    EXPECT_EQ(Derived::destructor_count, 1);
 }
 
 TEST_F(SharedPtrTest, WeakPtrLockOnExpired) {
-    weak_ptr<TestObject> wptr;
+    weak_ptr<Derived> wptr;
     {
-        shared_ptr<TestObject> sptr(new TestObject(50));
+        shared_ptr<Derived> sptr(new Derived(50));
         wptr = sptr;
         EXPECT_FALSE(wptr.expired());
     }
     EXPECT_TRUE(wptr.expired());
-    shared_ptr<TestObject> sptr = wptr.lock();
+    shared_ptr<Derived> sptr = wptr.lock();
     EXPECT_FALSE(sptr);
     EXPECT_EQ(sptr.use_count(), 0);
 }
 
 TEST_F(SharedPtrTest, WeakPtrCopyConstructor) {
-    shared_ptr<TestObject> sptr(new TestObject(100));
-    weak_ptr<TestObject> wptr1(sptr);
-    weak_ptr<TestObject> wptr2(wptr1);
+    shared_ptr<Derived> sptr(new Derived(100));
+    weak_ptr<Derived> wptr1(sptr);
+    weak_ptr<Derived> wptr2(wptr1);
 
     EXPECT_EQ(wptr1.use_count(), 1);
     EXPECT_EQ(wptr2.use_count(), 1);
@@ -542,21 +546,21 @@ TEST_F(SharedPtrTest, WeakPtrCopyConstructor) {
 }
 
 TEST_F(SharedPtrTest, WeakPtrMoveConstructor) {
-    shared_ptr<TestObject> sptr(new TestObject(100));
-    weak_ptr<TestObject> wptr1(sptr);
-    weak_ptr<TestObject> wptr2(std::move(wptr1));
+    shared_ptr<Derived> sptr(new Derived(100));
+    weak_ptr<Derived> wptr1(sptr);
+    weak_ptr<Derived> wptr2(std::move(wptr1));
 
     EXPECT_EQ(wptr2.use_count(), 1);
     EXPECT_FALSE(wptr2.expired());
 }
 
 TEST_F(SharedPtrTest, WeakPtrCopyAssignment) {
-    TestObject::destructor_count = 0;
+    Derived::destructor_count = 0;
     {
-        shared_ptr<TestObject> sptr1(new TestObject(10));
-        shared_ptr<TestObject> sptr2(new TestObject(20));
-        weak_ptr<TestObject> wptr1(sptr1);
-        weak_ptr<TestObject> wptr2(sptr2);
+        shared_ptr<Derived> sptr1(new Derived(10));
+        shared_ptr<Derived> sptr2(new Derived(20));
+        weak_ptr<Derived> wptr1(sptr1);
+        weak_ptr<Derived> wptr2(sptr2);
 
         EXPECT_EQ(wptr1.use_count(), 1);
         EXPECT_EQ(wptr2.use_count(), 1);
@@ -565,14 +569,14 @@ TEST_F(SharedPtrTest, WeakPtrCopyAssignment) {
         EXPECT_EQ(wptr1.use_count(), 1);
 
         sptr1 = nullptr;
-        EXPECT_EQ(TestObject::destructor_count, 1);
+        EXPECT_EQ(Derived::destructor_count, 1);
     }
-    EXPECT_EQ(TestObject::destructor_count, 2);
+    EXPECT_EQ(Derived::destructor_count, 2);
 }
 
 TEST_F(SharedPtrTest, WeakPtrAssignmentFromSharedPtr) {
-    shared_ptr<TestObject> sptr(new TestObject(75));
-    weak_ptr<TestObject> wptr;
+    shared_ptr<Derived> sptr(new Derived(75));
+    weak_ptr<Derived> wptr;
 
     EXPECT_EQ(wptr.use_count(), 0);
     wptr = sptr;
@@ -581,18 +585,18 @@ TEST_F(SharedPtrTest, WeakPtrAssignmentFromSharedPtr) {
 }
 
 TEST_F(SharedPtrTest, WeakPtrMoveAssignment) {
-    shared_ptr<TestObject> sptr1(new TestObject(30));
-    shared_ptr<TestObject> sptr2(new TestObject(40));
-    weak_ptr<TestObject> wptr1(sptr1);
-    weak_ptr<TestObject> wptr2(sptr2);
+    shared_ptr<Derived> sptr1(new Derived(30));
+    shared_ptr<Derived> sptr2(new Derived(40));
+    weak_ptr<Derived> wptr1(sptr1);
+    weak_ptr<Derived> wptr2(sptr2);
 
     wptr1 = std::move(wptr2);
     EXPECT_EQ(wptr1.use_count(), 1);
 }
 
 TEST_F(SharedPtrTest, WeakPtrReset) {
-    shared_ptr<TestObject> sptr(new TestObject(88));
-    weak_ptr<TestObject> wptr(sptr);
+    shared_ptr<Derived> sptr(new Derived(88));
+    weak_ptr<Derived> wptr(sptr);
 
     EXPECT_FALSE(wptr.expired());
     wptr.reset();
@@ -601,10 +605,10 @@ TEST_F(SharedPtrTest, WeakPtrReset) {
 }
 
 TEST_F(SharedPtrTest, WeakPtrSwap) {
-    shared_ptr<TestObject> sptr1(new TestObject(60));
-    shared_ptr<TestObject> sptr2(new TestObject(70));
-    weak_ptr<TestObject> wptr1(sptr1);
-    weak_ptr<TestObject> wptr2(sptr2);
+    shared_ptr<Derived> sptr1(new Derived(60));
+    shared_ptr<Derived> sptr2(new Derived(70));
+    weak_ptr<Derived> wptr1(sptr1);
+    weak_ptr<Derived> wptr2(sptr2);
 
     wptr1.swap(wptr2);
 
@@ -613,26 +617,26 @@ TEST_F(SharedPtrTest, WeakPtrSwap) {
 }
 
 TEST_F(SharedPtrTest, SharedPtrFromWeakPtr) {
-    TestObject::destructor_count = 0;
+    Derived::destructor_count = 0;
     {
-        shared_ptr<TestObject> sptr1(new TestObject(99));
-        weak_ptr<TestObject> wptr(sptr1);
+        shared_ptr<Derived> sptr1(new Derived(99));
+        weak_ptr<Derived> wptr(sptr1);
 
-        shared_ptr<TestObject> sptr2(wptr);
+        shared_ptr<Derived> sptr2(wptr);
         EXPECT_EQ(sptr1.use_count(), 2);
         EXPECT_EQ(sptr2->value, 99);
     }
-    EXPECT_EQ(TestObject::destructor_count, 1);
+    EXPECT_EQ(Derived::destructor_count, 1);
 }
 
 TEST_F(SharedPtrTest, SharedPtrFromExpiredWeakPtr) {
-    weak_ptr<TestObject> wptr;
+    weak_ptr<Derived> wptr;
     {
-        shared_ptr<TestObject> sptr(new TestObject(11));
+        shared_ptr<Derived> sptr(new Derived(11));
         wptr = sptr;
     }
 
-    shared_ptr<TestObject> sptr(wptr);
+    shared_ptr<Derived> sptr(wptr);
     EXPECT_FALSE(sptr);
     EXPECT_EQ(sptr.use_count(), 0);
 }

@@ -1,15 +1,17 @@
 #pragma once
 
 #include <algorithm>
+#include <atomic>
 #include <cassert>
 #include <cstddef>
 #include <memory>
+#include <utility>
 
 namespace ksl {
 namespace {
 struct control_block_base {
-    size_t shared_count{1};
-    size_t weak_count{0};
+    std::atomic<size_t> shared_count{1};
+    std::atomic<size_t> weak_count{0};
     virtual void incrementSharedCount() { ++shared_count; };
     virtual void decrementSharedCount() { --shared_count; };
     virtual size_t sharedCount() { return shared_count; };
@@ -80,8 +82,14 @@ template <typename T> class shared_ptr {
     // Copy constructor
     shared_ptr(const shared_ptr<T> &rhs) noexcept;
 
+    /// Alias copy constructor
+    template <typename Y> shared_ptr(const shared_ptr<Y> &ptr, T *element_type) noexcept;
+
     // Move constructor
     shared_ptr(shared_ptr<T> &&rhs) noexcept;
+
+    /// Alias move constructor
+    template <typename Y> shared_ptr(shared_ptr<Y> &&ptr, T *element_type) noexcept;
 
     // Copy assignment
     /// Assignment operator that deletes the current managed object and
@@ -270,10 +278,28 @@ shared_ptr<T>::shared_ptr(const shared_ptr<T> &rhs) noexcept : d_ptr(rhs.d_ptr),
     }
 }
 
+/// Alias constructor
+template <typename T>
+template <typename Y>
+shared_ptr<T>::shared_ptr(const shared_ptr<Y> &ptr, T *element_type) noexcept
+    : d_ptr(element_type), d_cb(ptr.d_cb) {
+    if (d_cb) {
+        d_cb->incrementSharedCount();
+    }
+}
+
 template <typename T>
 shared_ptr<T>::shared_ptr(shared_ptr<T> &&rhs) noexcept : d_ptr(nullptr), d_cb(nullptr) {
     std::swap(this->d_cb, rhs.d_cb);
     std::swap(this->d_ptr, rhs.d_ptr);
+}
+
+/// Alias constructor
+template <typename T>
+template <typename Y>
+shared_ptr<T>::shared_ptr(shared_ptr<Y> &&ptr, T *element_type) noexcept
+    : d_ptr(element_type), d_cb(nullptr) {
+    std::swap(d_cb, ptr.d_cb);
 }
 
 template <typename T> shared_ptr<T> &shared_ptr<T>::operator=(const shared_ptr<T> &rhs) {
