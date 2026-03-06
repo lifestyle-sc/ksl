@@ -9,8 +9,12 @@
 
 namespace ksl {
 namespace {
+// Callable deleter concepts
+template <typename T, typename D>
+concept CallableDeleter = requires(T *ptr, D del) { del(ptr); };
+
 struct control_block_base {
-    std::atomic<size_t> shared_count{1};
+    std::atomic<size_t> shared_count{0};
     std::atomic<size_t> weak_count{0};
     virtual void incrementSharedCount() { ++shared_count; };
     virtual void decrementSharedCount() { --shared_count; };
@@ -84,7 +88,9 @@ template <typename T> class shared_ptr {
 
     /// Creates a shared_ptr that manages the given raw pointer and
     /// a deleter to manage the clean up of the raw pointer
-    template <typename Deleter> explicit shared_ptr(T *ptr, Deleter deleter);
+    template <typename Deleter>
+        requires CallableDeleter<T, Deleter>
+    explicit shared_ptr(T *ptr, Deleter deleter);
 
     // Create a shared_ptr from a weak_ptr
     explicit shared_ptr(const weak_ptr<T> &ptr);
@@ -114,8 +120,8 @@ template <typename T> class shared_ptr {
     ~shared_ptr();
 
   private:
-    // A private constructor for internal use by weak_ptr
-    shared_ptr(T *ptr, control_block_base *cb);
+    // A private constructor for internal use by weak_ptr && make_shared
+    shared_ptr(T *ptr, control_block_base *cb) noexcept;
 
   public:
     // ACCESSORS
@@ -152,6 +158,7 @@ template <typename T> class shared_ptr {
         release();
         d_cb = new_cb;
         d_ptr = ptr;
+        d_cb->incrementSharedCount();
     }
 
     template <typename Deleter> inline void reset(T *ptr, Deleter deleter) {
@@ -163,6 +170,7 @@ template <typename T> class shared_ptr {
         release();
         d_cb = new_cb;
         d_ptr = ptr;
+        d_cb->incrementSharedCount();
     }
 
     inline void swap(shared_ptr &ptr) noexcept {
@@ -174,7 +182,7 @@ template <typename T> class shared_ptr {
     // Friend
     friend class weak_ptr<T>;
 
-    template <typename... Args> friend shared_ptr<T> make_shared(Args &&...args);
+    template <typename Y, typename... Args> friend shared_ptr<Y> make_shared(Args &&...args);
 };
 
 // ============================================================================
@@ -263,12 +271,17 @@ constexpr shared_ptr<T>::shared_ptr(std::nullptr_t) noexcept : d_ptr(nullptr), d
 template <typename T>
 shared_ptr<T>::shared_ptr(T *ptr)
     : d_ptr(ptr),
-      d_cb(new control_block_impl<T, std::default_delete<T>>{ptr, std::default_delete<T>()}) {}
+      d_cb(new control_block_impl<T, std::default_delete<T>>{ptr, std::default_delete<T>()}) {
+    d_cb->incrementSharedCount();
+}
 
 template <typename T>
 template <typename Deleter>
+    requires CallableDeleter<T, Deleter>
 shared_ptr<T>::shared_ptr(T *ptr, Deleter deleter)
-    : d_ptr(ptr), d_cb(new control_block_impl<T, Deleter>{ptr, deleter}) {}
+    : d_ptr(ptr), d_cb(new control_block_impl<T, Deleter>{ptr, deleter}) {
+    d_cb->incrementSharedCount();
+}
 
 template <typename T> shared_ptr<T>::shared_ptr(const weak_ptr<T> &wptr) {
     if (wptr.d_cb && wptr.d_cb->sharedCount() > 0) {
@@ -336,7 +349,7 @@ template <typename T> shared_ptr<T> &shared_ptr<T>::operator=(shared_ptr<T> &&rh
 }
 
 template <typename T>
-shared_ptr<T>::shared_ptr(T *ptr, control_block_base *cb) : d_ptr(ptr), d_cb(cb) {
+shared_ptr<T>::shared_ptr(T *ptr, control_block_base *cb) noexcept : d_ptr(ptr), d_cb(cb) {
     if (d_ptr && d_cb) {
         d_cb->incrementSharedCount();
     }
@@ -406,11 +419,9 @@ template <typename T> void weak_ptr<T>::swap(weak_ptr<T> &ptr) noexcept {
 // MAKE_SHARED IMPLEMENTATION
 // ============================================================================
 
-template <typename T, typename... Args> shared_ptr<T> make_shared(Args &&...args) {
-    auto cb = new control_block_make_shared_impl<T>{std::forward<Args>(args)...};
-
-    T *ptr = reinterpret_cast<T *>(cb->storage);
-
-    return shared_ptr<T>{ptr, cb};
+template <typename Y, typename... Args> shared_ptr<Y> make_shared(Args &&...args) {
+    auto cb = new control_block_make_shared_impl<Y>{std::forward<Args>(args)...};
+    Y *ptr = reinterpret_cast<Y *>(cb->storage);
+    return shared_ptr<Y>(ptr, cb);
 }
 } // namespace ksl

@@ -408,6 +408,54 @@ TEST_F(SharedPtrTest, ValueTypeAlias) {
 }
 
 // ============================================================================
+// MAKE_SHARED FUNCTION
+// ============================================================================
+
+TEST_F(SharedPtrTest, MakeShared) {
+    Derived::destructor_count = 0;
+    {
+        shared_ptr<Derived> ptr = make_shared<Derived>(100);
+        EXPECT_EQ(ptr->value, 100);
+        EXPECT_EQ(ptr.use_count(), 1);
+        EXPECT_TRUE(ptr);
+    }
+    EXPECT_EQ(Derived::destructor_count, 1);
+}
+
+TEST_F(SharedPtrTest, MakeSharedWithMultipleOwners) {
+    Derived::destructor_count = 0;
+    {
+        shared_ptr<Derived> ptr1 = make_shared<Derived>(55);
+        shared_ptr<Derived> ptr2(ptr1);
+        shared_ptr<Derived> ptr3(ptr1);
+
+        EXPECT_EQ(ptr1.use_count(), 3);
+        EXPECT_EQ(ptr2.use_count(), 3);
+        EXPECT_EQ(ptr3.use_count(), 3);
+        EXPECT_EQ(ptr1->value, 55);
+    }
+    EXPECT_EQ(Derived::destructor_count, 1);
+}
+
+TEST_F(SharedPtrTest, MakeSharedWithMultipleArguments) {
+    struct MultiArg {
+        int a;
+        int b;
+        int c;
+
+        MultiArg(int x, int y, int z) : a(x), b(y), c(z) {}
+    };
+
+    {
+        shared_ptr<MultiArg> ptr = make_shared<MultiArg>(1, 2, 3);
+        EXPECT_EQ(ptr->a, 1);
+        EXPECT_EQ(ptr->b, 2);
+        EXPECT_EQ(ptr->c, 3);
+        EXPECT_EQ(ptr.use_count(), 1);
+    }
+}
+
+// ============================================================================
 // WEAK_PTR TESTS
 // ============================================================================
 
