@@ -14,14 +14,14 @@ template <typename T, typename D>
 concept CallableDeleter = requires(T *ptr, D del) { del(ptr); };
 
 struct control_block_base {
-    std::atomic<size_t> shared_count{0};
-    std::atomic<size_t> weak_count{0};
-    virtual void incrementSharedCount() { ++shared_count; };
-    virtual void decrementSharedCount() { --shared_count; };
-    virtual size_t sharedCount() { return shared_count; };
-    virtual void incrementWeakCount() { ++weak_count; };
-    virtual void decrementWeakCount() { --weak_count; };
-    virtual size_t weakCount() { return weak_count; };
+    std::atomic<size_t> d_shared_count{0};
+    std::atomic<size_t> d_weak_count{0};
+    virtual void increment_shared_count() { ++d_shared_count; };
+    virtual void decrement_shared_count() { --d_shared_count; };
+    virtual size_t shared_count() { return d_shared_count; };
+    virtual void increment_weak_count() { ++d_weak_count; };
+    virtual void decrement_weak_count() { --d_weak_count; };
+    virtual size_t weak_count() { return d_weak_count; };
     virtual void dispose() = 0;
     virtual ~control_block_base() = default;
 };
@@ -36,13 +36,13 @@ struct control_block_impl : public control_block_base {
 };
 
 template <typename T> struct control_block_make_shared_impl : public control_block_base {
-    alignas(T) char storage[sizeof(T)];
+    alignas(T) char d_storage[sizeof(T)];
 
     template <typename... Args> control_block_make_shared_impl(Args &&...args) {
-        new (storage) T(std::forward<Args>(args)...);
+        new (d_storage) T(std::forward<Args>(args)...);
     }
 
-    void dispose() override { reinterpret_cast<T *>(storage)->~T(); }
+    void dispose() override { reinterpret_cast<T *>(d_storage)->~T(); }
 };
 } // namespace
 
@@ -61,10 +61,10 @@ template <typename T> class shared_ptr {
             return;
         }
 
-        d_cb->decrementSharedCount();
-        if (d_cb->sharedCount() == 0) {
+        d_cb->decrement_shared_count();
+        if (d_cb->shared_count() == 0) {
             d_cb->dispose();
-            if (d_cb->weakCount() == 0) {
+            if (d_cb->weak_count() == 0) {
                 delete d_cb;
             }
         }
@@ -140,7 +140,7 @@ template <typename T> class shared_ptr {
     // OBSERVERS
     [[nodiscard]] inline std::size_t use_count() const noexcept {
         if (d_cb) {
-            return d_cb->sharedCount();
+            return d_cb->shared_count();
         }
         return 0;
     }
@@ -158,7 +158,7 @@ template <typename T> class shared_ptr {
         release();
         d_cb = new_cb;
         d_ptr = ptr;
-        d_cb->incrementSharedCount();
+        d_cb->increment_shared_count();
     }
 
     template <typename Deleter> inline void reset(T *ptr, Deleter deleter) {
@@ -170,7 +170,7 @@ template <typename T> class shared_ptr {
         release();
         d_cb = new_cb;
         d_ptr = ptr;
-        d_cb->incrementSharedCount();
+        d_cb->increment_shared_count();
     }
 
     inline void swap(shared_ptr &ptr) noexcept {
@@ -197,8 +197,8 @@ template <typename T> class weak_ptr {
         if (!d_cb) {
             return;
         }
-        d_cb->decrementWeakCount();
-        if (d_cb->sharedCount() == 0 && d_cb->weakCount() == 0) {
+        d_cb->decrement_weak_count();
+        if (d_cb->shared_count() == 0 && d_cb->weak_count() == 0) {
             delete d_cb;
         }
         d_cb = nullptr;
@@ -240,13 +240,13 @@ template <typename T> class weak_ptr {
     // OBSERVERS
     [[nodiscard]] inline std::size_t use_count() const noexcept {
         if (d_cb) {
-            return d_cb->sharedCount();
+            return d_cb->shared_count();
         }
         return 0;
     }
 
     [[nodiscard]] inline bool expired() const noexcept {
-        return d_cb == nullptr || d_cb->sharedCount() == 0;
+        return d_cb == nullptr || d_cb->shared_count() == 0;
     }
 
     [[nodiscard]] inline shared_ptr<T> lock() const noexcept {
@@ -272,7 +272,7 @@ template <typename T>
 shared_ptr<T>::shared_ptr(T *ptr)
     : d_ptr(ptr),
       d_cb(new control_block_impl<T, std::default_delete<T>>{ptr, std::default_delete<T>()}) {
-    d_cb->incrementSharedCount();
+    d_cb->increment_shared_count();
 }
 
 template <typename T>
@@ -280,14 +280,14 @@ template <typename Deleter>
     requires CallableDeleter<T, Deleter>
 shared_ptr<T>::shared_ptr(T *ptr, Deleter deleter)
     : d_ptr(ptr), d_cb(new control_block_impl<T, Deleter>{ptr, deleter}) {
-    d_cb->incrementSharedCount();
+    d_cb->increment_shared_count();
 }
 
 template <typename T> shared_ptr<T>::shared_ptr(const weak_ptr<T> &wptr) {
-    if (wptr.d_cb && wptr.d_cb->sharedCount() > 0) {
+    if (wptr.d_cb && wptr.d_cb->shared_count() > 0) {
         this->d_ptr = wptr.d_ptr;
         this->d_cb = wptr.d_cb;
-        this->d_cb->incrementSharedCount();
+        this->d_cb->increment_shared_count();
     } else {
         this->d_ptr = nullptr;
         this->d_cb = nullptr;
@@ -299,7 +299,7 @@ template <typename T> shared_ptr<T>::~shared_ptr() { release(); }
 template <typename T>
 shared_ptr<T>::shared_ptr(const shared_ptr<T> &rhs) noexcept : d_ptr(rhs.d_ptr), d_cb(rhs.d_cb) {
     if (d_cb) {
-        d_cb->incrementSharedCount();
+        d_cb->increment_shared_count();
     }
 }
 
@@ -309,7 +309,7 @@ template <typename Y>
 shared_ptr<T>::shared_ptr(const shared_ptr<Y> &ptr, T *element_type) noexcept
     : d_ptr(element_type), d_cb(ptr.d_cb) {
     if (d_cb) {
-        d_cb->incrementSharedCount();
+        d_cb->increment_shared_count();
     }
 }
 
@@ -333,7 +333,7 @@ template <typename T> shared_ptr<T> &shared_ptr<T>::operator=(const shared_ptr<T
         this->d_cb = rhs.d_cb;
         this->d_ptr = rhs.d_ptr;
         if (this->d_cb) {
-            this->d_cb->incrementSharedCount();
+            this->d_cb->increment_shared_count();
         }
     }
     return *this;
@@ -351,7 +351,7 @@ template <typename T> shared_ptr<T> &shared_ptr<T>::operator=(shared_ptr<T> &&rh
 template <typename T>
 shared_ptr<T>::shared_ptr(T *ptr, control_block_base *cb) noexcept : d_ptr(ptr), d_cb(cb) {
     if (d_ptr && d_cb) {
-        d_cb->incrementSharedCount();
+        d_cb->increment_shared_count();
     }
 }
 
@@ -364,14 +364,14 @@ template <typename T> constexpr weak_ptr<T>::weak_ptr() noexcept : d_ptr(nullptr
 template <typename T>
 weak_ptr<T>::weak_ptr(const weak_ptr<T> &ptr) noexcept : d_ptr(ptr.d_ptr), d_cb(ptr.d_cb) {
     if (d_cb) {
-        d_cb->incrementWeakCount();
+        d_cb->increment_weak_count();
     }
 }
 
 template <typename T>
 weak_ptr<T>::weak_ptr(const shared_ptr<T> &ptr) noexcept : d_ptr(ptr.d_ptr), d_cb(ptr.d_cb) {
     if (d_cb) {
-        d_cb->incrementWeakCount();
+        d_cb->increment_weak_count();
     }
 }
 
@@ -388,7 +388,7 @@ template <typename T> weak_ptr<T> &weak_ptr<T>::operator=(const weak_ptr<T> &rhs
     this->d_ptr = rhs.d_ptr;
     this->d_cb = rhs.d_cb;
     if (this->d_cb) {
-        d_cb->incrementWeakCount();
+        d_cb->increment_weak_count();
     }
     return *this;
 }
@@ -398,7 +398,7 @@ template <typename T> weak_ptr<T> &weak_ptr<T>::operator=(const shared_ptr<T> &r
     this->d_ptr = rhs.d_ptr;
     this->d_cb = rhs.d_cb;
     if (this->d_cb) {
-        d_cb->incrementWeakCount();
+        d_cb->increment_weak_count();
     }
     return *this;
 }
@@ -421,7 +421,7 @@ template <typename T> void weak_ptr<T>::swap(weak_ptr<T> &ptr) noexcept {
 
 template <typename Y, typename... Args> shared_ptr<Y> make_shared(Args &&...args) {
     auto cb = new control_block_make_shared_impl<Y>{std::forward<Args>(args)...};
-    Y *ptr = reinterpret_cast<Y *>(cb->storage);
+    Y *ptr = reinterpret_cast<Y *>(cb->d_storage);
     return shared_ptr<Y>(ptr, cb);
 }
 } // namespace ksl
