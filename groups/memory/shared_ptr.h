@@ -30,6 +30,16 @@ struct control_block_impl : public control_block_base {
     control_block_impl(T *ptr, Deleter deleter) : d_ptr(ptr), d_deleter(deleter) {}
     void dispose() override { d_deleter(d_ptr); }
 };
+
+template <typename T> struct control_block_make_shared_impl : public control_block_base {
+    alignas(T) char storage[sizeof(T)];
+
+    template <typename... Args> control_block_make_shared_impl(Args &&...args) {
+        new (storage) T(std::forward<Args>(args)...);
+    }
+
+    void dispose() override { reinterpret_cast<T *>(storage)->~T(); }
+};
 } // namespace
 
 // ============================================================================
@@ -163,6 +173,8 @@ template <typename T> class shared_ptr {
   public:
     // Friend
     friend class weak_ptr<T>;
+
+    template <typename... Args> friend shared_ptr<T> make_shared(Args &&...args);
 };
 
 // ============================================================================
@@ -388,5 +400,17 @@ template <typename T> weak_ptr<T> &weak_ptr<T>::operator=(weak_ptr<T> &&rhs) noe
 template <typename T> void weak_ptr<T>::swap(weak_ptr<T> &ptr) noexcept {
     std::swap(this->d_ptr, ptr.d_ptr);
     std::swap(this->d_cb, ptr.d_cb);
+}
+
+// ============================================================================
+// MAKE_SHARED IMPLEMENTATION
+// ============================================================================
+
+template <typename T, typename... Args> shared_ptr<T> make_shared(Args &&...args) {
+    auto cb = new control_block_make_shared_impl<T>{std::forward<Args>(args)...};
+
+    T *ptr = reinterpret_cast<T *>(cb->storage);
+
+    return shared_ptr<T>{ptr, cb};
 }
 } // namespace ksl
